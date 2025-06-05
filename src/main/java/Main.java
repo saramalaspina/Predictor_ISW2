@@ -47,5 +47,8 @@ public class Main {
         gitExtractor.setMethodBuggyness(methodList);
         System.out.println(project+": method buggyness added.");
 
+        PrintUtils.createDataset(project, methodList);
+        System.out.println(project+": dataset created.");
+
     }
 }

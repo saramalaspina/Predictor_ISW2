@@ -6,9 +6,8 @@ import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.MethodDeclaration;
-import model.JavaMethod;
-import model.Release;
-import model.Ticket;
+
+import model.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -210,19 +209,22 @@ public class ExtractFromGit {
                         try {
                             CompilationUnit cu = StaticJavaParser.parse(fileContent);
                             cu.findAll(MethodDeclaration.class).forEach(md -> {
-                                String methodNameOnly = md.getNameAsString();
                                 String methodSignature = JavaMethod.getSignature(md);
                                 String fqn = filePath + "/" + methodSignature;
 
                                 if (!processedMethodsForRelease.contains(fqn)) {
-                                    JavaMethod javaMethod = new JavaMethod(fqn, methodNameOnly, filePath, release);
-                                    // Calcola LOC statico qui
-                                    javaMethod.setLoc(calculateLOC(md));
-                                    javaMethod.setNumParameters(md.getParameters().size());
+                                    JavaMethod currentReleaseMethod = new JavaMethod(fqn, release);
+                                    currentReleaseMethod.setBodyHash(calculateBodyHash(md));
 
-                                    allMethodsOfReleases.add(javaMethod);
-                                    release.addMethod(javaMethod); // Associa il metodo alla sua release
-                                    javaMethod.setBodyHash(calculateBodyHash(md));
+                                    // Calculate Metrics
+                                    int currentLoc = calculateLOC(md);
+                                    currentReleaseMethod.setLoc(currentLoc);
+                                    currentReleaseMethod.setNumParameters(md.getParameters().size());
+                                    currentReleaseMethod.setNumberOfBranches(calculateNumberOfBranches(md));
+                                    currentReleaseMethod.setNestingDepth(calculateNestingDepth(md));
+                                    allMethodsOfReleases.add(currentReleaseMethod);
+                                    release.addMethod(currentReleaseMethod); // Associa il metodo alla sua release
+                                    currentReleaseMethod.setBodyHash(calculateBodyHash(md));
                                     processedMethodsForRelease.add(fqn);
                                 }
                             });
@@ -278,8 +280,7 @@ public class ExtractFromGit {
     }
 
     public void addCommitsToMethods(List<JavaMethod> allMethods, List<RevCommit> commitListInput) throws IOException, GitAPIException {
-        // Ordina i commit per processarli cronologicamente
-        List<RevCommit> sortedCommits = new ArrayList<>(commitListInput); // Usa il parametro
+        List<RevCommit> sortedCommits = new ArrayList<>(commitListInput);
         sortedCommits.sort(Comparator.comparing(RevCommit::getCommitTime));
 
         for (RevCommit commit : sortedCommits) {
@@ -288,17 +289,15 @@ public class ExtractFromGit {
             }
 
             RevCommit parent = commit.getParent(0);
-            List<DiffEntry> diffs = getDiffEntries(parent, commit); // Il tuo metodo helper
+            List<DiffEntry> diffs = getDiffEntries(parent, commit);
 
-            // Ottieni il contenuto dei file SOLO per i file che sono effettivamente cambiati
             Map<String, String> oldFileContents = getFileContents(parent, diffs, true);
             Map<String, String> newFileContents = getFileContents(commit, diffs, false);
 
             for (DiffEntry diff : diffs) {
                 String filePath;
-                boolean isDelete = diff.getChangeType() == DiffEntry.ChangeType.DELETE;
 
-                if (isDelete) {
+                if (diff.getChangeType() == DiffEntry.ChangeType.DELETE) {
                     filePath = diff.getOldPath();
                 } else {
                     filePath = diff.getNewPath();
@@ -314,37 +313,42 @@ public class ExtractFromGit {
                 Map<String, MethodDeclaration> oldMethods = parseMethods(oldContent);
                 Map<String, MethodDeclaration> newMethods = parseMethods(newContent);
 
-                // Caso 1: Metodi Aggiunti o Modificati
                 for (Map.Entry<String, MethodDeclaration> newMethodEntry : newMethods.entrySet()) {
                     String signature = newMethodEntry.getKey();
                     MethodDeclaration newMd = newMethodEntry.getValue();
-                    MethodDeclaration oldMd = oldMethods.get(signature); // Potrebbe essere null se il metodo è nuovo
+                    MethodDeclaration oldMd = oldMethods.get(signature);
 
                     String newBodyHash = calculateBodyHash(newMd);
                     String oldBodyHash = (oldMd != null) ? calculateBodyHash(oldMd) : null;
 
-                    boolean changed = (oldMd == null) || (oldBodyHash != null && !oldBodyHash.equals(newBodyHash));
+                    boolean changed;
+                    if (oldMd == null) {
+                        changed = true;
+                    } else {
+                        changed = !Objects.equals(oldBodyHash, newBodyHash);
+                    }
 
                     if (changed) {
-                        updateMethodMetricsForCommit(allMethods, filePath, newMd, commit, oldMd, newMd, newBodyHash);
+                        updateMethodMetricsForCommit(allMethods, filePath, newMd, commit, oldMd, newMd);
                     }
                 }
-
             }
         }
 
+        // Calcola NumAuthors dopo che tutti i commit sono stati processati
         for (JavaMethod method : allMethods) {
-            if (method.getCommits() != null && !method.getCommits().isEmpty()) { // Assicura che la lista non sia null o vuota
+            if (method.getCommits() != null && !method.getCommits().isEmpty()) {
                 Set<String> authors = method.getCommits().stream()
-                        .map(c -> c.getAuthorIdent().getName()) // Assumendo che AuthorIdent e Name non siano null
-                        .filter(Objects::nonNull) // Filtra nomi null se possibile
+                        .map(c -> c.getAuthorIdent().getName())
+                        .filter(Objects::nonNull)
                         .collect(Collectors.toSet());
                 method.setNumAuthors(authors.size());
             } else {
-                method.setNumAuthors(0); // Nessun commit, nessun autore
+                method.setNumAuthors(0);
             }
         }
     }
+
 
     private List<DiffEntry> getDiffEntries(RevCommit parent, RevCommit commit) throws IOException, GitAPIException {
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
@@ -379,32 +383,45 @@ public class ExtractFromGit {
     }
 
     private void updateMethodMetricsForCommit(List<JavaMethod> allProjectMethods, String filePath,
-                                              MethodDeclaration currentMdAst, RevCommit commit,
-                                              MethodDeclaration oldMdAst, MethodDeclaration newMdAst, String newBodyHash) {
-        String signature = JavaMethod.getSignature(currentMdAst);
+                                              MethodDeclaration currentMdAst_in_commit, RevCommit commit,
+                                              MethodDeclaration oldMdAst_in_parent_commit, MethodDeclaration newMdAst_in_commit) {
+        String signature = JavaMethod.getSignature(currentMdAst_in_commit);
         String fqn = filePath + "/" + signature;
-        Release releaseOfCommit = GitUtils.getReleaseOfCommit(commit, this.fullReleaseList); // Usa full per trovare la release corretta del commit
+        Release releaseOfCommit = GitUtils.getReleaseOfCommit(commit, this.fullReleaseList);
 
-        if (releaseOfCommit == null) return; // Commit non appartiene a nessuna release tracciata
+        if (releaseOfCommit == null) return;
 
-        // Trova le istanze del metodo nelle release ANALIZZATE che sono UGUALI o SUCCESSIVE alla release del commit
         for (JavaMethod projectMethod : allProjectMethods) {
-            if (projectMethod.getFullyQualifiedName().equals(fqn) && projectMethod.getRelease().getId() == releaseOfCommit.getId()) { // Il metodo in questa release o future è affetto
+            if (projectMethod.getFullyQualifiedName().equals(fqn) &&
+                    !projectMethod.getRelease().getDate().isBefore(releaseOfCommit.getDate())) { // projectMethod.releaseDate >= commit.releaseDate
 
-                projectMethod.addCommit(commit); // Aggiunge il commit allo storico del metodo
+                projectMethod.addCommit(commit);
                 projectMethod.incrementNumRevisions();
-                projectMethod.setBodyHash(newBodyHash);
 
-                if (oldMdAst != null && newMdAst != null) {
-                    int locOld = calculateLOC(oldMdAst);
-                    int locNew = calculateLOC(newMdAst);
-                    if (locNew > locOld) projectMethod.addStmtAdded(locNew - locOld);
-                    if (locOld > locNew) projectMethod.addStmtDeleted(locOld - locNew);
-                } else if (newMdAst != null) { // Aggiunta
-                    projectMethod.addStmtAdded(calculateLOC(newMdAst));
+                int addedInThisCommit = 0;
+                int deletedInThisCommit = 0;
+
+                int locNewInCommit = calculateLOC(newMdAst_in_commit);
+
+                if (oldMdAst_in_parent_commit != null) {
+                    int locOldInParentCommit = calculateLOC(oldMdAst_in_parent_commit);
+
+                    if (locNewInCommit > locOldInParentCommit) {
+                        addedInThisCommit = locNewInCommit - locOldInParentCommit;
+                    }
+                    if (locOldInParentCommit > locNewInCommit) {
+                        deletedInThisCommit = locOldInParentCommit - locNewInCommit;
+                    }
+                } else {
+                    addedInThisCommit = locNewInCommit;
                 }
 
-                break;
+                projectMethod.addStmtAdded(addedInThisCommit);
+                projectMethod.addStmtDeleted(deletedInThisCommit);
+
+                int churnForThisCommit = addedInThisCommit + deletedInThisCommit;
+                projectMethod.updateMaxChurn(churnForThisCommit);
+
             }
         }
     }
@@ -418,22 +435,63 @@ public class ExtractFromGit {
             cu.findAll(MethodDeclaration.class).forEach(md -> {
                 methods.put(JavaMethod.getSignature(md), md);
             });
-        } catch (ParseProblemException | StackOverflowError e) {
-            // Ignora errori di parsing per file singoli durante il diff, ma logga
-            // System.err.println("Errore di parsing durante il diff: " + e.getMessage());
+        } catch (ParseProblemException | StackOverflowError ignored) {
         }
         return methods;
     }
 
 
     private int calculateLOC(MethodDeclaration md) {
-        if (md.getBody().isPresent()) {
-            // Conta linee non vuote e non solo commenti. Semplificazione: conta le linee del blocco.
-            String[] lines = md.getBody().get().toString().split("\r\n|\r|\n");
-            return (int) Arrays.stream(lines).filter(line -> !line.trim().isEmpty() && !line.trim().startsWith("//") && !line.trim().startsWith("/*") && !line.trim().endsWith("*/")).count();
+        if (!md.getBody().isPresent()) {
+            return 0;
         }
-        return 0;
+        String body = md.getBody().get().toString();
+        if (body.startsWith("/*") && body.contains("*/")) {
+            body = body.substring(body.indexOf("*/") + 2);
+        }
+
+        String[] lines = body.split("\r\n|\r|\n");
+        long count = Arrays.stream(lines)
+                .map(String::trim)
+                .filter(line -> !line.isEmpty() &&
+                        !line.startsWith("//") &&
+                        !(line.startsWith("/*") && line.endsWith("*/")) &&
+                        !line.equals("{") && !line.equals("}")
+                ).count();
+
+        if (count == 0 && lines.length > 2) {
+            boolean allCommentsOrEmpty = true;
+            for(String line : lines){
+                String trimmedLine = line.trim();
+                if(!trimmedLine.isEmpty() && !trimmedLine.startsWith("//") && !trimmedLine.startsWith("/*") && !trimmedLine.endsWith("*/") && !trimmedLine.equals("{") && !trimmedLine.equals("}")){
+                    allCommentsOrEmpty = false;
+                    break;
+                }
+            }
+            if(allCommentsOrEmpty) return 0;
+        }
+
+        return (int) count;
     }
+
+    private int calculateNumberOfBranches(MethodDeclaration md) {
+        if (!md.getBody().isPresent()) {
+            return 0;
+        }
+        BranchDecisionCounterVisitor visitor = new BranchDecisionCounterVisitor();
+        md.getBody().get().accept(visitor, null);
+        return visitor.getCount();
+    }
+
+    private int calculateNestingDepth(MethodDeclaration md) {
+        if (!md.getBody().isPresent()) {
+            return 0;
+        }
+        NestingDepthVisitor visitor = new NestingDepthVisitor();
+        md.getBody().get().accept(visitor, null);
+        return visitor.getMaxDepth();
+    }
+
 
     public void setMethodBuggyness(List<JavaMethod> allProjectMethods) {
         if (this.ticketList == null) {
@@ -513,5 +571,4 @@ public class ExtractFromGit {
             }
         }
     }
-
 }

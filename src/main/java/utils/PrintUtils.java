@@ -131,7 +131,7 @@ public class PrintUtils {
         file = new File(MAINDIR + project + "/Methods.csv");
         try (FileWriter fileWriter = new FileWriter(file)) {
 
-            fileWriter.append("fullyQualifiedName, methodName,className,firstCommit,#Commits\n");
+            fileWriter.append("fullyQualifiedName,firstCommit,#Commits\n");
 
             for (JavaMethod m : methods) {
                 String firstCommit;
@@ -141,11 +141,47 @@ public class PrintUtils {
                     firstCommit = m.getCommits().get(0).toString();
                 }
 
-                fileWriter.append(m.getFullyQualifiedName()).append(",")
-                        .append(m.getMethodName()).append(",")
-                        .append(m.getClassName()).append(",")
-                        .append(firstCommit).append(",")
+                fileWriter.append(escapeCSV(m.getFullyQualifiedName())).append(",")
+                        .append(escapeCSV(firstCommit)).append(",")
                         .append(String.valueOf(m.getCommits().size()))
+                        .append(DELIMITER);
+            }
+
+            flushAndCloseFW(fileWriter, logger, CLASS);
+        } catch (IOException e) {
+            logger.info(ERROR);
+        }
+    }
+
+    public static void createDataset(String project, List<JavaMethod> methods) throws IOException {
+        project = project.toLowerCase();
+        File file = new File(MAINDIR + project);
+        if (!file.exists()) {
+            boolean created = file.mkdirs();
+            if (!created) {
+                throw new IOException();
+            }
+        }
+
+        file = new File(MAINDIR + project + "/Dataset.csv");
+        try (FileWriter fileWriter = new FileWriter(file)) {
+
+            fileWriter.append("Method,Release,LOC,#Parameters,#Authors,#Revisions,StmtAdded,StmtDeleted,MaxChurn,AvgChurn,#Branches,NestingDepth,Buggy\n");
+
+            for (JavaMethod m : methods) {
+                fileWriter.append(escapeCSV(m.getFullyQualifiedName())).append(",")
+                        .append(String.valueOf(m.getRelease().getId())).append(",")
+                        .append(String.valueOf(m.getLoc())).append(",")
+                        .append(String.valueOf(m.getNumParameters())).append(",")
+                        .append(String.valueOf(m.getNumAuthors())).append(",")
+                        .append(String.valueOf(m.getNumRevisions())).append(",")
+                        .append(String.valueOf(m.getTotalStmtAdded())).append(",")
+                        .append(String.valueOf(m.getTotalStmtDeleted())).append(",")
+                        .append(String.valueOf(m.getMaxChurnInARevision())).append(",")
+                        .append(String.valueOf(m.getAvgChurn())).append(",")
+                        .append(String.valueOf(m.getNumberOfBranches())).append(",")
+                        .append(String.valueOf(m.getNestingDepth())).append(",")
+                        .append(m.isBuggy() ? "yes" : "no")
                         .append(DELIMITER);
             }
 
@@ -162,5 +198,13 @@ public class PrintUtils {
         } catch (IOException e) {
             logger.info("Error in " + className + " while flushing/closing fileWriter !!!");
         }
+    }
+
+    private static String escapeCSV(String field) {
+        if (field.contains(",") || field.contains("\"") || field.contains("\n")) {
+            field = field.replace("\"", "\"\""); // escape dei doppi apici
+            return "\"" + field + "\"";
+        }
+        return field;
     }
 }
