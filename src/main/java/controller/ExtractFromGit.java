@@ -142,6 +142,8 @@ public class ExtractFromGit {
             }
         }
 
+        filterAndRenumberReleases();
+
         setReleaseListForAnalysis();
 
         return commitList;
@@ -570,5 +572,16 @@ public class ExtractFromGit {
                 }
             }
         }
+    }
+
+    private void filterAndRenumberReleases() {
+        // Remove releases with 0 commit
+        this.fullReleaseList.removeIf(release -> release.getCommitList().isEmpty());
+
+        int idCounter = 1;
+        for (Release r : this.fullReleaseList) {
+            r.setId(idCounter++);
+        }
+
     }
 }

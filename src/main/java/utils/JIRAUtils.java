@@ -69,10 +69,10 @@ public class JIRAUtils {
         return existingAffectedVersions;
     }
 
-    public static List<Ticket> addIVandAV(List<Ticket> ticketsList, List<Release> releasesList) throws IOException, URISyntaxException {
+    public static List<Ticket> addIVandAV(List<Ticket> ticketsList, List<Release> releasesList, String projectName) throws IOException, URISyntaxException {
         List<Ticket> finalTicketsList = new ArrayList<>();
 
-        Proportion proportion = new Proportion();
+        Proportion proportion = new Proportion(projectName);
 
         for(Ticket ticket: ticketsList){
             if(ticket.getAv().isEmpty()){

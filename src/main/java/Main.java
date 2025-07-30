@@ -1,23 +1,32 @@
 import controller.ExtractFromGit;
 import controller.ExtractFromJIRA;
+import controller.WekaAnalysis;
 import model.JavaMethod;
 import model.Release;
 import model.Ticket;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.revwalk.RevCommit;
 import utils.PrintUtils;
 
-import java.io.IOException;
-import java.net.URISyntaxException;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 public class Main {
 
-    public static void main(String[] args) throws IOException, URISyntaxException, GitAPIException {
+    public static void main(String[] args) throws Exception {
+        Logger rootLogger = Logger.getLogger("");
+        rootLogger.setLevel(Level.SEVERE);
+
         //String project = "BOOKKEEPER";
         String project = "OPENJPA";
 
+        System.out.println("-------------------------------------------");
+        System.out.println("Starting analysis for project: " + project.toUpperCase());
+        System.out.println("-------------------------------------------");
+
+        // --- PHASE 1: DATA EXTRACTION ---
+        System.out.println("\n[PHASE 1] Extracting data from JIRA and Git...");
         ExtractFromJIRA jiraExtractor = new ExtractFromJIRA(project);
         List<Release> fullReleaseList = jiraExtractor.getReleaseList();
         System.out.println(project+": releases extracted.");
@@ -47,8 +56,23 @@ public class Main {
         gitExtractor.setMethodBuggyness(methodList);
         System.out.println(project+": method buggyness added.");
 
-        PrintUtils.createDataset(project, methodList);
+        String fullDatasetPath = "reportFiles/" + project.toLowerCase() + "/Dataset.csv";
+        PrintUtils.createDataset(fullDatasetPath, methodList);
         System.out.println(project+": dataset created.");
+
+        System.out.println("[PHASE 1] Data extraction complete.\n");
+
+        // --- PHASE 2: WEKA MACHINE LEARNING ANALYSIS ---
+        System.out.println("[PHASE 2] Starting WEKA Machine Learning pipeline...");
+
+        WekaAnalysis wekaAnalysis = new WekaAnalysis(project, methodList, releaseList);
+        wekaAnalysis.execute();
+
+        System.out.println("[PHASE 2] WEKA Machine Learning pipeline complete.\n");
+
+        System.out.println("-------------------------------------------");
+        System.out.println("Analysis for " + project.toUpperCase() + " has finished successfully.");
+        System.out.println("-------------------------------------------");
 
     }
 }

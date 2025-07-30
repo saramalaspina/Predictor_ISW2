@@ -94,7 +94,7 @@ public class ExtractFromJIRA {
         if(fix) {
             List<Ticket> fixedTicketsList;
             // add the AV (if missing) using proportion
-            fixedTicketsList = JIRAUtils.addIVandAV(ticketsList, releasesList);
+            fixedTicketsList = JIRAUtils.addIVandAV(ticketsList, releasesList, this.projectName);
             fixedTicketsList.sort(Comparator.comparing(Ticket::getResolutionDate));
             return fixedTicketsList;
         } else {
