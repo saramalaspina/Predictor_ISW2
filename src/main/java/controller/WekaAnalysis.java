@@ -181,7 +181,7 @@ public class WekaAnalysis {
                         project, i, wekaClf.getName(),
                         wekaClf.getFeatureSelection(), wekaClf.getSampling(), wekaClf.getCostSensitive(),
                         eval.precision(buggyClassIndex), eval.recall(buggyClassIndex),
-                        eval.areaUnderROC(buggyClassIndex), eval.kappa()
+                        eval.areaUnderROC(buggyClassIndex), eval.kappa(), eval.fMeasure(buggyClassIndex)
                 );
                 this.evaluationResults.add(result);
             }
