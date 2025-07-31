@@ -31,6 +31,8 @@ public class JavaMethod {
     private int numberOfCodeSmells;
     private int maxChurn;
 
+    private int nFix;
+
     public JavaMethod(String fullyQualifiedName, Release release) {
         this.fullyQualifiedName = fullyQualifiedName;
         this.release = release;
@@ -47,6 +49,7 @@ public class JavaMethod {
         this.nestingDepth = 0;
         this.numberOfCodeSmells = 0;
         this.maxChurn = 0;
+        this.nFix = 0;
     }
 
     public int getLoc() {
@@ -199,6 +202,14 @@ public class JavaMethod {
         if (churnOfThisRevision > this.maxChurn) {
             this.maxChurn = churnOfThisRevision;
         }
+    }
+
+    public int getNFix() {
+        return nFix;
+    }
+
+    public void setNFix(int nFix) {
+        this.nFix = nFix;
     }
 
     @Override

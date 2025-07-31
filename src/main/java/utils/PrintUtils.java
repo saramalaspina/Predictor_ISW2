@@ -14,6 +14,7 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -25,7 +26,7 @@ public class PrintUtils {
 
     // Define base directories for different types of output
     private static final String REPORT_DIR = "reportFiles/";
-    private static final String WEKA_RESULTS_DIR = "WekaResults/";
+    private static final String WEKA_RESULTS_DIR = "wekaResults/";
     private static final String SLASH = "/";
 
     /**
@@ -127,7 +128,7 @@ public class PrintUtils {
     // Creates a dataset CSV file from a list of JavaMethod objects
     public static void createDataset(String fullPath, List<JavaMethod> methods) {
         try (FileWriter fileWriter = new FileWriter(fullPath)) {
-            fileWriter.append("Release,LOC,#Parameters,#Authors,#Revisions,StmtAdded,StmtDeleted,MaxChurn,AvgChurn,#Branches,NestingDepth,Buggy\n");
+            fileWriter.append("Release,LOC,#Parameters,#Authors,#Revisions,StmtAdded,StmtDeleted,MaxChurn,AvgChurn,#Branches,NestingDepth,NFix,Buggy\n");
 
             for (JavaMethod m : methods) {
                 fileWriter.append(String.valueOf(m.getRelease().getId())).append(",")
@@ -141,6 +142,7 @@ public class PrintUtils {
                         .append(String.valueOf(m.getAvgChurn())).append(",")
                         .append(String.valueOf(m.getNumberOfBranches())).append(",")
                         .append(String.valueOf(m.getNestingDepth())).append(",")
+                        .append(String.valueOf(m.getNFix())).append(",")
                         .append(m.isBuggy() ? "yes" : "no")
                         .append(DELIMITER);
             }
@@ -155,17 +157,17 @@ public class PrintUtils {
         String projectDir = WEKA_RESULTS_DIR + project.toLowerCase() + SLASH;
         ensureDirectoryExists(projectDir);
 
-        String filename = projectDir + project.toUpperCase() + "_EvaluationResults.csv";
+        String filename = projectDir + "evaluationResults.csv";
 
         try (FileWriter writer = new FileWriter(filename)) {
             // Write the header
             writer.append(EvaluationResult.getCsvHeader());
-            writer.append("\n");
+            writer.append(DELIMITER);
 
             // Write each result row
             for (EvaluationResult result : results) {
                 writer.append(result.toCsvString());
-                writer.append("\n");
+                writer.append(DELIMITER);
             }
 
             LOGGER.log(Level.INFO, "WEKA evaluation results saved to: {0}", filename);

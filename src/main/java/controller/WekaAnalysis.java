@@ -8,6 +8,7 @@ import utils.PrintUtils;
 import utils.WekaUtils;
 import weka.classifiers.Evaluation;
 import weka.core.Instances;
+import weka.core.converters.ArffSaver;
 import weka.core.converters.ConverterUtils.DataSource;
 
 import java.io.File;
@@ -62,15 +63,15 @@ public class WekaAnalysis {
         // The loop goes up to releasesToAnalyze.size() - 1 because the last release is only used for testing
         for (int i = 1; i < releasesToAnalyze.size(); i++) {
             final int trainingReleaseId = i; // Release ID for the end of the training period
+            final int testingReleaseId = i + 1;
 
-            // The training set contains methods from release 1 up to the current trainingReleaseId
+
             List<JavaMethod> trainingMethods = allMethods.stream()
-                    .filter(m -> m.getRelease().getId() <= trainingReleaseId)
+                    .filter(m -> m.getRelease().getId() == trainingReleaseId)
                     .collect(Collectors.toList());
 
-            // The testing set contains methods from the next release (i.e., i+1)
             List<JavaMethod> testingMethods = allMethods.stream()
-                    .filter(m -> m.getRelease().getId() == (trainingReleaseId + 1))
+                    .filter(m -> m.getRelease().getId() == testingReleaseId)
                     .collect(Collectors.toList());
 
             if (testingMethods.isEmpty()) {
@@ -78,21 +79,30 @@ public class WekaAnalysis {
                 continue;
             }
 
-            // Create directories for the current iteration
-            String iterDir = "arffFiles/" + project.toLowerCase() + "/iteration_" + i;
+
+            String iterDir = "arffFiles/" + project + "/iteration_" + i;
             new File(iterDir).mkdirs();
 
-            String trainingCsvPath = iterDir + "/Training.csv";
-            String testingCsvPath = iterDir + "/Testing.csv";
+            // 1. Build training Instances in memory
+            String trainingRelationName = project + "_Training_" + i;
+            Instances trainingSet = WekaUtils.buildInstances(trainingMethods, trainingRelationName);
 
-            // Create CSV dataset files using your utility class
-            PrintUtils.createDataset(trainingCsvPath, trainingMethods);
-            PrintUtils.createDataset(testingCsvPath, testingMethods);
+            // 2. Save the training Instances directly to an ARFF file
+            ArffSaver saver = new ArffSaver();
+            saver.setInstances(trainingSet);
+            saver.setFile(new File(iterDir + "/Training.arff"));
+            saver.writeBatch();
 
-            // Convert the newly created CSV files to ARFF format
-            WekaUtils.convertCsvToArff(trainingCsvPath, trainingCsvPath.replace(".csv", ".arff"));
-            WekaUtils.convertCsvToArff(testingCsvPath, testingCsvPath.replace(".csv", ".arff"));
-        }
+            // 3. Build testing Instances in memory
+            String testingRelationName = project + "_Testing_" + i;
+            Instances testingSet = WekaUtils.buildInstances(testingMethods, testingRelationName);
+
+            // 4. Save the testing Instances directly to an ARFF file
+            saver.setInstances(testingSet);
+            saver.setFile(new File(iterDir + "/Testing.arff"));
+            saver.writeBatch();
+
+            }
         LOGGER.info("Walk-forward data preparation complete.");
     }
 
@@ -122,8 +132,8 @@ public class WekaAnalysis {
 
             // --- STEP 2: LOAD WEKA DATASETS ---
 
-            String trainingArffPath = "arffFiles/" + project + "/iteration_" + i + "/Training.arff";
-            String testingArffPath = "arffFiles/" + project + "/iteration_" + i + "/Testing.arff";
+            String trainingArffPath = "arffFiles/" + project.toLowerCase() + "/iteration_" + i + "/Training.arff";
+            String testingArffPath = "arffFiles/" + project.toLowerCase() + "/iteration_" + i + "/Testing.arff";
 
             if (!new File(trainingArffPath).exists() || !new File(testingArffPath).exists()) {
                 LOGGER.log(Level.WARNING, "Skipping iteration {0}: ARFF files not found.", i);

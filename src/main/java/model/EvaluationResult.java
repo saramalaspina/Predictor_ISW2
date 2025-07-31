@@ -1,5 +1,7 @@
 package model;
 
+import java.util.Locale;
+
 public class EvaluationResult {
     private final String project;
     private final int iteration;
@@ -31,7 +33,7 @@ public class EvaluationResult {
     }
 
     public String toCsvString() {
-        return String.format("%s,%d,%s,%s,%s,%s,%.3f,%.3f,%.3f,%.3f",
+        return String.format(Locale.US, "%s,%d,%s,%s,%s,%s,%.3f,%.3f,%.3f,%.3f",
                 project,
                 iteration,
                 classifierName,

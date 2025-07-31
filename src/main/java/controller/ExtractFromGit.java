@@ -241,6 +241,8 @@ public class ExtractFromGit {
         // Associazione commit ai metodi (storico)
         addCommitsToMethods(allMethodsOfReleases, this.commitList);
 
+        calculateNFix(allMethodsOfReleases);
+
         return allMethodsOfReleases;
     }
 
@@ -583,5 +585,32 @@ public class ExtractFromGit {
             r.setId(idCounter++);
         }
 
+    }
+
+    public void calculateNFix(List<JavaMethod> allMethods) {
+        Map<String, Ticket> commitNameToTicketMap = new HashMap<>();
+        for (Ticket ticket : this.ticketList) {
+            // Assicurati che ticketList contenga solo i bug (lo fa già dalla query JIRA)
+            for (RevCommit commit : ticket.getCommitList()) {
+                commitNameToTicketMap.put(commit.getName(), ticket);
+            }
+        }
+
+        for (JavaMethod method : allMethods) {
+            int nFixCount = 0;
+            Release currentMethodRelease = method.getRelease();
+
+            for (RevCommit commit : method.getCommits()) {
+                // Controlla se il commit è un "fix commit" (associato a un ticket di bug)
+                if (commitNameToTicketMap.containsKey(commit.getName())) {
+
+                    Release commitRelease = GitUtils.getReleaseOfCommit(commit, this.fullReleaseList);
+                    if (commitRelease != null && commitRelease.getId() < currentMethodRelease.getId()) {
+                        nFixCount++;
+                    }
+                }
+            }
+            method.setNFix(nFixCount);
+        }
     }
 }
