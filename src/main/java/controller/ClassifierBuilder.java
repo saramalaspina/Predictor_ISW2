@@ -118,7 +118,7 @@ public class ClassifierBuilder {
         // Configure the search method using command-line options
         // -D 1 specifies a forward search.
         try {
-            search.setOptions(Utils.splitOptions("-D 1"));
+            search.setOptions(Utils.splitOptions("-D 0"));
         } catch (Exception e) {
             Logger.getLogger(ClassifierBuilder.class.getName()).log(Level.SEVERE, "Failed to set BestFirst options", e);
         }
@@ -155,17 +155,17 @@ public class ClassifierBuilder {
     // Penalizes False Negatives (predicting 'not-buggy' for a buggy instance) 10 times more
     // than False Positives (predicting 'buggy' for a clean instance).
     private static CostMatrix createCostMatrix() {
-        // Assuming class 0 = buggy (positive), class 1 = not-buggy (negative)
+        // Assuming class 0 = not-buggy (negative), class 1 = buggy (positive)
         // The matrix is structured as:
-        //      Predicted
-        //      buggy  not-buggy
-        // Act. buggy   0      10 (FN)
-        // Act. not-buggy 1 (FP)   0
+        //                      Predicted
+        //                  not-buggy  buggy
+        // Act. not-buggy   0  (TN)      1 (FP)
+        // Act. buggy       10 (FN)      0 (TP)
         CostMatrix matrix = new CostMatrix(2);
-        matrix.setCell(0, 0, 0.0);   // True Positive (correct)
-        matrix.setCell(1, 1, 0.0);   // True Negative (correct)
-        matrix.setCell(0, 1, 10.0);  // False Negative (costly mistake)
-        matrix.setCell(1, 0, 1.0);   // False Positive (less costly mistake)
+        matrix.setCell(0, 0, 0.0);   // True Negative (correct)
+        matrix.setCell(1, 1, 0.0);   // True Positive (correct)
+        matrix.setCell(0, 1, 1.0);   // False Positive (less costly mistake)
+        matrix.setCell(1, 0, 10.0);  // False Negative (costly mistake)
         return matrix;
     }
 }

@@ -36,4 +36,12 @@ public class WekaClassifier {
     public String getCostSensitive() {
         return costSensitive;
     }
+
+    public String getDescriptiveName() {
+        StringBuilder nameBuilder = new StringBuilder(name);
+        if (!"None".equalsIgnoreCase(sampling)) nameBuilder.append("_").append(sampling);
+        if (!"None".equalsIgnoreCase(featureSelection)) nameBuilder.append("_fs");
+        if (!"None".equalsIgnoreCase(costSensitive)) nameBuilder.append("_cs");
+        return nameBuilder.toString();
+    }
 }

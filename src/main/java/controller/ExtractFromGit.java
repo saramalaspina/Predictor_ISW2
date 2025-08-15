@@ -7,6 +7,12 @@ import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.MethodDeclaration;
 
+import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.expr.InstanceOfExpr;
+import com.github.javaparser.ast.expr.IntegerLiteralExpr;
+import com.github.javaparser.ast.stmt.BlockStmt;
+import com.github.javaparser.ast.stmt.CatchClause;
+import com.github.javaparser.ast.stmt.SwitchStmt;
 import model.*;
 
 import java.io.ByteArrayOutputStream;
@@ -221,9 +227,15 @@ public class ExtractFromGit {
                                     // Calculate Metrics
                                     int currentLoc = calculateLOC(md);
                                     currentReleaseMethod.setLoc(currentLoc);
-                                    currentReleaseMethod.setNumParameters(md.getParameters().size());
-                                    currentReleaseMethod.setNumberOfBranches(calculateNumberOfBranches(md));
-                                    currentReleaseMethod.setNestingDepth(calculateNestingDepth(md));
+                                    int numParameters = md.getParameters().size();
+                                    currentReleaseMethod.setNumParameters(numParameters);
+                                    int branches = calculateNumberOfBranches(md);
+                                    currentReleaseMethod.setNumberOfBranches(branches);
+                                    int nestingDepth = calculateNestingDepth(md);
+                                    currentReleaseMethod.setNestingDepth(nestingDepth);
+                                    int smellCount = calculateCodeSmells(md, branches, currentLoc, nestingDepth, numParameters);
+                                    currentReleaseMethod.setNumberOfCodeSmells(smellCount);
+
                                     allMethodsOfReleases.add(currentReleaseMethod);
                                     release.addMethod(currentReleaseMethod); // Associa il metodo alla sua release
                                     currentReleaseMethod.setBodyHash(calculateBodyHash(md));
@@ -612,5 +624,44 @@ public class ExtractFromGit {
             }
             method.setNFix(nFixCount);
         }
+    }
+
+    private int calculateCodeSmells(MethodDeclaration md, int cyclomaticComplexity, int loc, int nestingDepth, int numParameters) {
+        if (!md.getBody().isPresent()) return 0;
+        int smellCount = 0;
+        BlockStmt body = md.getBody().get();
+
+        if (cyclomaticComplexity > 7) smellCount++;
+        if (loc > 30) smellCount++;
+        if (nestingDepth > 4) smellCount++;
+        if (numParameters > 5) smellCount++;
+
+        for (SwitchStmt switchStmt : body.findAll(SwitchStmt.class)) {
+            if (switchStmt.getEntries().stream().noneMatch(entry -> entry.getLabels().isEmpty())) {
+                smellCount++;
+            }
+        }
+        for (CatchClause catchClause : body.findAll(CatchClause.class)) {
+            if (catchClause.getBody().getStatements().isEmpty()) {
+                smellCount++;
+            }
+        }
+        if (body.findAll(InstanceOfExpr.class).size() > 2) {
+            smellCount++;
+        }
+        String methodName = md.getNameAsString();
+        if (methodName.equals("equals") || methodName.equals("hashCode") || methodName.equals("toString")) {
+            if (md.getAnnotations().stream().noneMatch(a -> a.getNameAsString().equals("Override"))) {
+                smellCount++;
+            }
+        }
+        long magicNumberCount = body.findAll(IntegerLiteralExpr.class).stream()
+                .filter(n -> { try { int val = n.asInt(); return val != 0 && val != 1 && val != -1; } catch (Exception e) { return true; } })
+                .filter(n -> n.getParentNode().map(p -> !(p instanceof VariableDeclarator)).orElse(true))
+                .count();
+        if (magicNumberCount > 1) {
+            smellCount++;
+        }
+        return smellCount;
     }
 }

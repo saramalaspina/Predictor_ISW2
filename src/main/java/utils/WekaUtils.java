@@ -2,11 +2,6 @@ package utils;
 
 import model.JavaMethod;
 import weka.core.Instances;
-import weka.core.converters.ArffSaver;
-import weka.core.converters.CSVLoader;
-
-import java.io.File;
-import java.io.IOException;
 import java.util.List;
 
 import weka.core.Attribute;
@@ -16,22 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 
 
-
-
 public class WekaUtils {
-    // Convert CSV to file ARFF
-    public static void convertCsvToArff(String sourceCsvPath, String destArffPath) throws IOException {
-        // Load CSV
-        CSVLoader loader = new CSVLoader();
-        loader.setSource(new File(sourceCsvPath));
-        Instances data = loader.getDataSet();
-
-        // Salve in ARFF format
-        ArffSaver saver = new ArffSaver();
-        saver.setInstances(data);
-        saver.setFile(new File(destArffPath));
-        saver.writeBatch();
-    }
 
     public static Instances buildInstances(List<JavaMethod> methods, String relationName) {
         ArrayList<Attribute> attributes = new ArrayList<>();
@@ -49,7 +29,7 @@ public class WekaUtils {
         attributes.add(new Attribute("#Branches"));
         attributes.add(new Attribute("NestingDepth"));
         attributes.add(new Attribute("NFix"));
-        attributes.add(new Attribute("ComplexityDensity"));
+        attributes.add(new Attribute("NSmells"));
 
         // Add the nominal class attribute (the one we want to predict)
         List<String> classValues = Arrays.asList("no", "yes");
@@ -77,6 +57,7 @@ public class WekaUtils {
             values[9] = m.getNumberOfBranches();
             values[10] = m.getNestingDepth();
             values[11] = m.getNFix();
+            values[12] = m.getNumberOfCodeSmells();
 
             // For the nominal class attribute, we use the index of the value in the list
             // "no" is at index 0, "yes" is at index 1

@@ -14,7 +14,6 @@ import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
-import java.util.Locale;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -128,10 +127,11 @@ public class PrintUtils {
     // Creates a dataset CSV file from a list of JavaMethod objects
     public static void createDataset(String fullPath, List<JavaMethod> methods) {
         try (FileWriter fileWriter = new FileWriter(fullPath)) {
-            fileWriter.append("Release,LOC,#Parameters,#Authors,#Revisions,StmtAdded,StmtDeleted,MaxChurn,AvgChurn,#Branches,NestingDepth,NFix,Buggy\n");
+            fileWriter.append("FullyQualifiedName,Release,LOC,#Parameters,#Authors,#Revisions,StmtAdded,StmtDeleted,MaxChurn,AvgChurn,#Branches,NestingDepth,NFix,NSmells,Buggy\n");
 
             for (JavaMethod m : methods) {
-                fileWriter.append(String.valueOf(m.getRelease().getId())).append(",")
+                fileWriter.append(escapeCSV(m.getFullyQualifiedName())).append(",")
+                        .append(String.valueOf(m.getRelease().getId())).append(",")
                         .append(String.valueOf(m.getLoc())).append(",")
                         .append(String.valueOf(m.getNumParameters())).append(",")
                         .append(String.valueOf(m.getNumAuthors())).append(",")
@@ -143,6 +143,7 @@ public class PrintUtils {
                         .append(String.valueOf(m.getNumberOfBranches())).append(",")
                         .append(String.valueOf(m.getNestingDepth())).append(",")
                         .append(String.valueOf(m.getNFix())).append(",")
+                        .append(String.valueOf(m.getNumberOfCodeSmells())).append(",")
                         .append(m.isBuggy() ? "yes" : "no")
                         .append(DELIMITER);
             }
@@ -153,8 +154,8 @@ public class PrintUtils {
 
 
     // Writes the evaluation results of the WEKA classifiers
-    public static void printEvaluationResults(String project, List<EvaluationResult> results) throws IOException {
-        String projectDir = WEKA_RESULTS_DIR + project.toLowerCase() + SLASH;
+    public static void printEvaluationResults(String project, List<EvaluationResult> results, String method) throws IOException {
+        String projectDir = WEKA_RESULTS_DIR + project.toLowerCase() + SLASH + method + SLASH;
         ensureDirectoryExists(projectDir);
 
         String filename = projectDir + "evaluationResults.csv";

@@ -18,8 +18,8 @@ public class Main {
         Logger rootLogger = Logger.getLogger("");
         rootLogger.setLevel(Level.SEVERE);
 
-        String project = "BOOKKEEPER";
-        //String project = "OPENJPA";
+        //String project = "BOOKKEEPER";
+        String project = "OPENJPA";
 
         System.out.println("-------------------------------------------");
         System.out.println("Starting analysis for project: " + project.toUpperCase());
@@ -66,7 +66,8 @@ public class Main {
         System.out.println("[PHASE 2] Starting WEKA Machine Learning pipeline...");
 
         WekaAnalysis wekaAnalysis = new WekaAnalysis(project, methodList, releaseList);
-        wekaAnalysis.execute();
+        wekaAnalysis.executeWalkForward();
+        //wekaAnalysis.executeCrossValidation();
 
         System.out.println("[PHASE 2] WEKA Machine Learning pipeline complete.\n");
 
@@ -75,4 +76,5 @@ public class Main {
         System.out.println("-------------------------------------------");
 
     }
+
 }
