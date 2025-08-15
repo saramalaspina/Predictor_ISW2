@@ -1,9 +1,6 @@
 package utils;
 
-import model.EvaluationResult;
-import model.JavaMethod;
-import model.Release;
-import model.Ticket;
+import model.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 
 import java.io.File;
@@ -28,11 +25,6 @@ public class PrintUtils {
     private static final String WEKA_RESULTS_DIR = "wekaResults/";
     private static final String SLASH = "/";
 
-    /**
-     * Ensures that a directory exists. If not, it creates it.
-     * @param directoryPath The path of the directory to check/create.
-     * @throws IOException if the directory cannot be created.
-     */
     private static void ensureDirectoryExists(String directoryPath) throws IOException {
         File dir = new File(directoryPath);
         if (!dir.exists() && !dir.mkdirs()) {
@@ -123,8 +115,6 @@ public class PrintUtils {
         }
     }
 
-
-    // Creates a dataset CSV file from a list of JavaMethod objects
     public static void createDataset(String fullPath, List<JavaMethod> methods) {
         try (FileWriter fileWriter = new FileWriter(fullPath)) {
             fileWriter.append("FullyQualifiedName,Release,LOC,#Parameters,#Authors,#Revisions,StmtAdded,StmtDeleted,MaxChurn,AvgChurn,#Branches,NestingDepth,NFix,NSmells,Buggy\n");
@@ -152,8 +142,6 @@ public class PrintUtils {
         }
     }
 
-
-    // Writes the evaluation results of the WEKA classifiers
     public static void printEvaluationResults(String project, List<EvaluationResult> results, String method) throws IOException {
         String projectDir = WEKA_RESULTS_DIR + project.toLowerCase() + SLASH + method + SLASH;
         ensureDirectoryExists(projectDir);
@@ -178,6 +166,16 @@ public class PrintUtils {
         }
     }
 
+    public static void printCorrelationTable(List<CorrelationResult> results) {
+        LOGGER.info("\n--- Spearman Correlation with 'Buggy' Class ---");
+        LOGGER.info("-------------------------------------------");
+        LOGGER.info(String.format("%-20s | %s", "Feature", "Correlation"));
+        LOGGER.info("-------------------------------------------");
+        for (CorrelationResult res : results) {
+            LOGGER.info(String.format("%-20s | % .4f", res.getAttributeName(), res.getCorrelationValue()));
+        }
+        LOGGER.info("-------------------------------------------");
+    }
 
     private static String escapeCSV(String field) {
         if (field == null) return "";

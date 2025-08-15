@@ -18,8 +18,8 @@ public class Main {
         Logger rootLogger = Logger.getLogger("");
         rootLogger.setLevel(Level.SEVERE);
 
-        //String project = "BOOKKEEPER";
-        String project = "OPENJPA";
+        String project = "BOOKKEEPER";
+        //String project = "OPENJPA";
 
         System.out.println("-------------------------------------------");
         System.out.println("Starting analysis for project: " + project.toUpperCase());
@@ -65,11 +65,16 @@ public class Main {
         // --- PHASE 2: WEKA MACHINE LEARNING ANALYSIS ---
         System.out.println("[PHASE 2] Starting WEKA Machine Learning pipeline...");
 
-        WekaAnalysis wekaAnalysis = new WekaAnalysis(project, methodList, releaseList);
-        wekaAnalysis.executeWalkForward();
-        //wekaAnalysis.executeCrossValidation();
+        WekaAnalysis wekaAnalysis = new WekaAnalysis(project);
+        //wekaAnalysis.executeWalkForward();
+        wekaAnalysis.executeCrossValidation();
 
         System.out.println("[PHASE 2] WEKA Machine Learning pipeline complete.\n");
+
+        // --- PHASE 3: ANALISI DI CORRELAZIONE ---
+        System.out.println("[PHASE 3] Starting Correlation Analysis...");
+        controller.CorrelationCalculator.calculateAndSave(project);
+        System.out.println(project+": correlation calculated.");
 
         System.out.println("-------------------------------------------");
         System.out.println("Analysis for " + project.toUpperCase() + " has finished successfully.");
