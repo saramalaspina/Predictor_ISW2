@@ -168,4 +168,52 @@ public class ClassifierBuilder {
         matrix.setCell(1, 0, 10.0);  // False Negative (costly mistake)
         return matrix;
     }
+
+    // Costruisce e restituisce una singola, specifica configurazione di classificatore.
+
+    public static WekaClassifier buildSpecificClassifier(String name, String sampling, String fs, String cs, Instances data) {
+        Classifier baseClassifier;
+        switch (name) {
+            case "RandomForest":
+                baseClassifier = new RandomForest();
+                break;
+            case "NaiveBayes":
+                baseClassifier = new NaiveBayes();
+                break;
+            case "IBk":
+                baseClassifier = new IBk();
+                break;
+            default:
+                throw new IllegalArgumentException("Classifier name not recognized: " + name);
+        }
+
+        Classifier finalClassifier = baseClassifier;
+
+        // Applica i filtri se richiesti (come SMOTE o Feature Selection)
+        if (!"None".equalsIgnoreCase(sampling) || !"None".equalsIgnoreCase(fs)) {
+            FilteredClassifier fc = new FilteredClassifier();
+            fc.setClassifier(baseClassifier);
+
+            if ("SMOTE".equalsIgnoreCase(sampling)) {
+                fc.setFilter(createSmoteFilter(data));
+            }
+            if ("BestFirst".equalsIgnoreCase(fs)) {
+                // Se hai già un filtro FS, potresti volerlo combinare con SMOTE
+                // Per ora, assumiamo che non vengano usati insieme o che tu lo gestisca.
+                fc.setFilter(createFeatureSelectionFilter());
+            }
+            finalClassifier = fc;
+        }
+
+        // Applica il wrapper Cost-Sensitive se richiesto
+        if ("SensitiveLearning".equalsIgnoreCase(cs)) {
+            CostSensitiveClassifier csc = new CostSensitiveClassifier();
+            csc.setClassifier(finalClassifier); // Usa il classificatore già filtrato se necessario
+            csc.setCostMatrix(createCostMatrix());
+            csc.setMinimizeExpectedCost(false);
+            finalClassifier = csc;
+        }
+
+        return new WekaClassifier(finalClassifier, name, sampling, fs, cs);
+    }
 }

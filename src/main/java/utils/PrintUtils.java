@@ -6,6 +6,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -166,17 +167,6 @@ public class PrintUtils {
         }
     }
 
-    public static void printCorrelationTable(List<CorrelationResult> results) {
-        LOGGER.info("\n--- Spearman Correlation with 'Buggy' Class ---");
-        LOGGER.info("-------------------------------------------");
-        LOGGER.info(String.format("%-20s | %s", "Feature", "Correlation"));
-        LOGGER.info("-------------------------------------------");
-        for (CorrelationResult res : results) {
-            LOGGER.info(String.format("%-20s | % .4f", res.getAttributeName(), res.getCorrelationValue()));
-        }
-        LOGGER.info("-------------------------------------------");
-    }
-
     private static String escapeCSV(String field) {
         if (field == null) return "";
         if (field.contains(",") || field.contains("\"") || field.contains("\n")) {
@@ -186,5 +176,22 @@ public class PrintUtils {
             return "\"" + field + "\"";
         }
         return field;
+    }
+
+    public static void printWhatIfResultsToCsv(String filePath, int... params) throws IOException {
+        File file = new File(filePath);
+        file.getParentFile().mkdirs();
+
+        try (PrintWriter writer = new PrintWriter(new FileWriter(file))) {
+            writer.println("Dataset,Type,Count");
+            writer.printf("A,Actual,%d%n", params[0]);
+            writer.printf("A,Estimated,%d%n", params[1]);
+            writer.printf("B+,Actual,%d%n", params[2]);
+            writer.printf("B+,Estimated,%d%n", params[3]);
+            writer.printf("B,Actual,%d%n", params[4]);
+            writer.printf("B,Estimated,%d%n", params[5]);
+            writer.printf("C,Actual,%d%n", params[6]);
+            writer.printf("C,Estimated,%d%n", params[7]);
+        }
     }
 }

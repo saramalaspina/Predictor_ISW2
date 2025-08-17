@@ -235,4 +235,8 @@ public class WekaAnalysis {
         PrintUtils.printEvaluationResults(project, evaluationResults, type);
         LOGGER.info("Evaluation results saved. ACUME input files generated in output/ folder.");
     }
+
+    public Instances getFullDataset() {
+        return this.fullDataset;
+    }
 }

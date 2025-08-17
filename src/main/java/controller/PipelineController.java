@@ -1,0 +1,112 @@
+package controller;
+
+import model.JavaMethod;
+import model.Release;
+import model.Ticket;
+import model.WekaClassifier;
+import org.eclipse.jgit.revwalk.RevCommit;
+import utils.PrintUtils;
+import weka.core.Instances;
+
+import java.util.List;
+import java.util.Scanner;
+
+public class PipelineController {
+
+    private final String project;
+
+    public PipelineController(String project) {
+        this.project = project;
+    }
+
+    /**
+     * Esegue la Fase 1: Estrazione dei dati e creazione del Dataset.csv
+     */
+    public void executeDataExtraction() throws Exception {
+        System.out.println("\n[PHASE 1] Extracting data from JIRA and Git...");
+        ExtractFromJIRA jiraExtractor = new ExtractFromJIRA(project);
+        List<Release> fullReleaseList = jiraExtractor.getReleaseList();
+        System.out.println(project+": releases extracted.");
+
+        List<Ticket> ticketList = jiraExtractor.getTicketList(fullReleaseList, true);
+        PrintUtils.printTickets(project, ticketList);
+        System.out.println(project+": ticket extracted.");
+
+        ExtractFromGit gitExtractor = new ExtractFromGit(project, fullReleaseList, ticketList);
+        List<RevCommit> commitList = gitExtractor.getAllCommitsAndAssignToReleases();
+        fullReleaseList = gitExtractor.getFullReleaseList();
+        List<Release> releaseList = gitExtractor.getReleaseList(); // first 34% of fullReleaseList
+        PrintUtils.printCommits(project, commitList, "AllCommits.csv");
+        System.out.println(project+": commits extracted and added to release list.");
+
+        List<RevCommit> filteredCommitList = gitExtractor.filterCommitsAndSetToTicket();
+        ticketList = gitExtractor.getTicketList();
+        PrintUtils.printCommits(project, filteredCommitList, "FilteredCommits.csv");
+        PrintUtils.printReleases(project, fullReleaseList, "AllReleases.csv");
+        PrintUtils.printReleases(project, releaseList, "AnalysisReleases.csv");
+        System.out.println(project+": commits filtered.");
+
+        List<JavaMethod> methodList = gitExtractor.getMethodsFromReleases();
+        PrintUtils.printMethods(project, methodList);
+        System.out.println(project+": methods extracted.");
+
+        gitExtractor.setMethodBuggyness(methodList);
+        System.out.println(project+": method buggyness added.");
+
+        String fullDatasetPath = "reportFiles/" + project.toLowerCase() + "/Dataset.csv";
+        PrintUtils.createDataset(fullDatasetPath, methodList);
+        System.out.println(project+": dataset created.");
+
+        System.out.println("[PHASE 1] Data extraction complete.\n");
+    }
+
+    /**
+     * Esegue la Fase 2: Analisi dei classificatori con Weka e generazione file per ACUME.
+     */
+    public void executeClassifierAnalysis() throws Exception {
+        System.out.println("\n[PHASE 2] Starting WEKA Machine Learning pipeline...");
+        WekaAnalysis wekaAnalysis = new WekaAnalysis(project);
+        wekaAnalysis.executeWalkForward();
+        wekaAnalysis.executeCrossValidation();
+        System.out.println("[PHASE 2] WEKA Machine Learning pipeline complete.\n");
+    }
+
+    /**
+     * Esegue la Fase 3: Calcolo della correlazione
+     */
+    public void executeCorrelationAnalysis() throws Exception {
+        System.out.println("\n[PHASE 3] Starting Correlation Analysis...");
+        CorrelationCalculator.calculateAndSave(project);
+        System.out.println("[PHASE 3] Correlation analysis complete.\n");
+    }
+
+    public void executeWhatIfAnalysis() throws Exception {
+        System.out.println("\n[PHASE 4] Starting What-If Analysis...");
+
+        // --- CONFIGURAZIONE DEL MIGLIOR CLASSIFICATORE (BClassifier) ---
+        final String BEST_CLF_NAME = "NaiveBayes";
+        final String BEST_SAMPLING = "None";
+        final String BEST_FS = "None";
+        final String BEST_CS = "None";
+
+        // Carica il dataset necessario
+        WekaAnalysis tempWeka = new WekaAnalysis(project);
+        Instances fullDataset = tempWeka.getFullDataset();
+
+        System.out.printf("Using BClassifier configuration: %s, Sampling=%s, FS=%s, CS=%s%n",
+                BEST_CLF_NAME, BEST_SAMPLING, BEST_FS, BEST_CS);
+
+        // Costruisci il BClassifier usando le costanti
+        WekaClassifier bClassifier = ClassifierBuilder.buildSpecificClassifier(
+                BEST_CLF_NAME, BEST_SAMPLING, BEST_FS, BEST_CS, fullDataset
+        );
+
+        // Istanzia ed esegui l'analisi
+        WhatIfAnalysis whatIf = new WhatIfAnalysis(fullDataset, bClassifier, project);
+        whatIf.execute();
+
+        System.out.println("[PHASE 4] What-If Analysis complete. Results saved to whatIf.csv.\n");
+    }
+
+
+}
