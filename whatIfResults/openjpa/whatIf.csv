@@ -1,0 +1,9 @@
+Dataset,Type,Count
+A,Actual,2265
+A,Estimated,1704
+B+,Actual,717
+B+,Estimated,713
+B,Actual,717
+B,Estimated,572
+C,Actual,1548
+C,Estimated,991

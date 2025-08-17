@@ -1,0 +1,14 @@
+Feature,SpearmanCorrelation
+NestingDepth,0.1306
+"#Branches",0.1288
+LOC,0.1268
+StmtAdded,0.1264
+MaxChurn,0.1241
+"#Authors",0.1137
+AvgChurn,0.1137
+"#Revisions",0.1094
+NFix,0.1002
+NSmells,0.0993
+StmtDeleted,0.0488
+"#Parameters",0.0473
+Release,0.0060
