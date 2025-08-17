@@ -89,14 +89,14 @@ public class WekaAnalysis {
 
     // --- CROSS-VALIDATION ANALYSIS ---
 
-    public void executeCrossValidation() {
+    public void executeCrossValidation(int numRuns) {
         LOGGER.log(Level.INFO, "--- Starting 10x10 FOLD analysis for project: {0} ---", project);
         try {
             if (this.fullDataset.isEmpty()) {
                 LOGGER.severe("Dataset is empty, aborting cross-validation.");
                 return;
             }
-            runCrossValidationClassification(10, 10);
+            runCrossValidationClassification(numRuns, 10);
             saveResults("crossValidation", this.crossValResults);
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "An error occurred during 10x10 fold analysis", e);

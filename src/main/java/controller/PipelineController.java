@@ -6,17 +6,19 @@ import model.Ticket;
 import model.WekaClassifier;
 import org.eclipse.jgit.revwalk.RevCommit;
 import utils.PrintUtils;
+import utils.ProjectConfig;
 import weka.core.Instances;
 
 import java.util.List;
-import java.util.Scanner;
 
 public class PipelineController {
 
     private final String project;
+    private final ProjectConfig config;
 
     public PipelineController(String project) {
-        this.project = project;
+        this.config = ProjectConfig.fromString(project);
+        this.project = this.config.getProjectName();
     }
 
     /**
@@ -66,8 +68,8 @@ public class PipelineController {
     public void executeClassifierAnalysis() throws Exception {
         System.out.println("\n[PHASE 2] Starting WEKA Machine Learning pipeline...");
         WekaAnalysis wekaAnalysis = new WekaAnalysis(project);
-        wekaAnalysis.executeWalkForward();
-        wekaAnalysis.executeCrossValidation();
+        //wekaAnalysis.executeWalkForward();
+        wekaAnalysis.executeCrossValidation(config.getCrossValidationRuns());
         System.out.println("[PHASE 2] WEKA Machine Learning pipeline complete.\n");
     }
 
@@ -84,21 +86,21 @@ public class PipelineController {
         System.out.println("\n[PHASE 4] Starting What-If Analysis...");
 
         // --- CONFIGURAZIONE DEL MIGLIOR CLASSIFICATORE (BClassifier) ---
-        final String BEST_CLF_NAME = "NaiveBayes";
-        final String BEST_SAMPLING = "None";
-        final String BEST_FS = "None";
-        final String BEST_CS = "None";
+        final String bestClassifierName = config.getBestClassifierName();
+        final String bestSampling = config.getBestSampling();
+        final String bestFeatureSelection = config.getBestFeatureSelection();
+        final String bestCostSensitive = config.getBestCostSensitive();
 
         // Carica il dataset necessario
         WekaAnalysis tempWeka = new WekaAnalysis(project);
         Instances fullDataset = tempWeka.getFullDataset();
 
         System.out.printf("Using BClassifier configuration: %s, Sampling=%s, FS=%s, CS=%s%n",
-                BEST_CLF_NAME, BEST_SAMPLING, BEST_FS, BEST_CS);
+                bestClassifierName, bestSampling, bestFeatureSelection, bestCostSensitive);
 
         // Costruisci il BClassifier usando le costanti
         WekaClassifier bClassifier = ClassifierBuilder.buildSpecificClassifier(
-                BEST_CLF_NAME, BEST_SAMPLING, BEST_FS, BEST_CS, fullDataset
+                bestClassifierName, bestSampling, bestFeatureSelection, bestCostSensitive, fullDataset
         );
 
         // Istanzia ed esegui l'analisi
