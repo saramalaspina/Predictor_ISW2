@@ -7,7 +7,7 @@ public class Main {
 
     public static void main(String[] args) {
         // Imposta il logging una sola volta
-        Logger.getLogger("").setLevel(Level.SEVERE);
+        Logger.getLogger("").setLevel(Level.INFO);
 
         Scanner scanner = new Scanner(System.in);
 

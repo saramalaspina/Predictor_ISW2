@@ -89,76 +89,87 @@ public class WekaAnalysis {
 
     // --- CROSS-VALIDATION ANALYSIS ---
 
-    public void executeCrossValidation(int numRuns) {
-        LOGGER.log(Level.INFO, "--- Starting 10x10 FOLD analysis for project: {0} ---", project);
+    public void executeCrossValidation(int numRuns, int numFolds) {
+        System.out.println("Cross Validation " + numRuns + " Times " + numFolds + " Folds");
+        LOGGER.log(Level.INFO, "--- Starting FOLD analysis for project: {0} ---", project);
         try {
             if (this.fullDataset.isEmpty()) {
                 LOGGER.severe("Dataset is empty, aborting cross-validation.");
                 return;
             }
-            runCrossValidationClassification(numRuns, 10);
+            runCrossValidationClassification(numRuns, numFolds);
             saveResults("crossValidation", this.crossValResults);
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "An error occurred during 10x10 fold analysis", e);
+            LOGGER.log(Level.SEVERE, "An error occurred during FOLD analysis", e);
         }
-        LOGGER.log(Level.INFO, "--- 10x10 FOLD analysis finished for project: {0} ---", project);
+        LOGGER.log(Level.INFO, "--- FOLD analysis finished for project: {0} ---", project);
     }
 
     private void runCrossValidationClassification(int numRuns, int numFolds) throws Exception {
-        LOGGER.info("Starting IN-MEMORY classification on prepared folds and ACUME file generation...");
+        LOGGER.info("Starting MEMORY-OPTIMIZED classification and ACUME file generation...");
         String acumeOutputDir = String.format("acumeFiles/%s/crossValidation/", this.project.toLowerCase());
         new File(acumeOutputDir).mkdirs();
 
         List<WekaClassifier> classifiersToTest = ClassifierBuilder.buildClassifiers(this.fullDataset);
+        int totalClassifiers = classifiersToTest.size();
+        int classifierCount = 0;
 
-        for (int run = 1; run <= numRuns; run++) {
-            LOGGER.log(Level.INFO, "--- CV Run {0}/{1} ---", new Object[]{run, numRuns});
+        // Loop esterno sui classificatori
+        for (WekaClassifier wekaClf : classifiersToTest) {
+            classifierCount++;
+            // <-- NUOVO LOG: Indica quale classificatore sta per essere processato
+            LOGGER.log(Level.INFO, "==========================================================");
+            LOGGER.log(Level.INFO, "Processing Classifier {0}/{1}: {2}", new Object[]{classifierCount, totalClassifiers, wekaClf.getDescriptiveName()});
+            LOGGER.log(Level.INFO, "==========================================================");
 
-            Map<String, List<PredictionResult>> aggregatedPredictions = new HashMap<>();
-            Map<String, List<Evaluation>> evaluationsPerClassifier = new HashMap<>();
-            classifiersToTest.forEach(clf -> {
-                aggregatedPredictions.put(clf.getDescriptiveName(), new ArrayList<>());
-                evaluationsPerClassifier.put(clf.getDescriptiveName(), new ArrayList<>());
-            });
+            // Per ogni run, calcoliamo le medie e salviamo i risultati per QUESTO classificatore
+            for (int run = 1; run <= numRuns; run++) {
+                // <-- NUOVO LOG: Inizio di una nuova run
+                LOGGER.log(Level.INFO, "--- Starting Run {0}/{1} for classifier {2} ---", new Object[]{run, numRuns, wekaClf.getDescriptiveName()});
 
-            Random rand = new Random(run);
-            Instances randData = new Instances(this.fullDataset);
-            randData.randomize(rand);
-            if (randData.classAttribute().isNominal()) {
-                randData.stratify(numFolds);
-            }
+                List<PredictionResult> aggregatedPredictionsForRun = new ArrayList<>();
+                List<Evaluation> evaluationsForRun = new ArrayList<>();
 
-            for (int fold = 0; fold < numFolds; fold++) {
-                Instances trainingSet = randData.trainCV(numFolds, fold, rand);
-                Instances testingSet = randData.testCV(numFolds, fold);
-                if (testingSet.isEmpty()) continue;
+                Random rand = new Random(run);
+                Instances randData = new Instances(this.fullDataset);
+                randData.randomize(rand);
+                if (randData.classAttribute().isNominal()) {
+                    randData.stratify(numFolds);
+                }
 
-                for (WekaClassifier wekaClf : classifiersToTest) {
+                for (int fold = 0; fold < numFolds; fold++) {
+                    // <-- NUOVO LOG: Inizio di un nuovo fold
+                    LOGGER.log(Level.FINE, "Processing fold {0}/{1}...", new Object[]{fold + 1, numFolds});
+
+                    Instances trainingSet = randData.trainCV(numFolds, fold, rand);
+                    Instances testingSet = randData.testCV(numFolds, fold);
+                    if (testingSet.isEmpty()) continue;
+
+                    // Addestra e valuta solo il classificatore corrente
                     wekaClf.getClassifier().buildClassifier(trainingSet);
 
-                    List<PredictionResult> foldPredictions = getPredictionResults(wekaClf.getClassifier(), testingSet);
-                    aggregatedPredictions.get(wekaClf.getDescriptiveName()).addAll(foldPredictions);
+                    aggregatedPredictionsForRun.addAll(getPredictionResults(wekaClf.getClassifier(), testingSet));
 
                     Evaluation eval = new Evaluation(trainingSet);
                     eval.evaluateModel(wekaClf.getClassifier(), testingSet);
-                    evaluationsPerClassifier.get(wekaClf.getDescriptiveName()).add(eval);
-                }
-            }
+                    evaluationsForRun.add(eval);
+                } // Fine loop fold
 
-            for (WekaClassifier wekaClf : classifiersToTest) {
+                // <-- NUOVO LOG: Fine di una run e salvataggio dei risultati
+                LOGGER.log(Level.INFO, "--- Finished Run {0}. Saving aggregated results... ---", run);
+
+                // Ora che la run è finita, salva i risultati per questo classificatore
                 String classifierName = wekaClf.getDescriptiveName();
-                List<PredictionResult> runPredictions = aggregatedPredictions.get(classifierName);
                 String acumeOutputFile = String.format("%s%s_%s_run%d.csv",
                         acumeOutputDir, project.toLowerCase(), classifierName.toLowerCase(), run);
-                AcumeUtils.exportToAcumeCsv(acumeOutputFile, runPredictions);
+                AcumeUtils.exportToAcumeCsv(acumeOutputFile, aggregatedPredictionsForRun);
 
-                List<Evaluation> evals = evaluationsPerClassifier.get(classifierName);
                 int buggyClassIndex = this.fullDataset.classAttribute().indexOfValue("yes");
-                double avgPrecision = evals.stream().mapToDouble(e -> e.precision(buggyClassIndex)).average().orElse(Double.NaN);
-                double avgRecall = evals.stream().mapToDouble(e -> e.recall(buggyClassIndex)).average().orElse(Double.NaN);
-                double avgAuc = evals.stream().mapToDouble(e -> e.areaUnderROC(buggyClassIndex)).average().orElse(Double.NaN);
-                double avgKappa = evals.stream().mapToDouble(Evaluation::kappa).average().orElse(Double.NaN);
-                double avgF1 = evals.stream().mapToDouble(e -> e.fMeasure(buggyClassIndex)).average().orElse(Double.NaN);
+                double avgPrecision = evaluationsForRun.stream().mapToDouble(e -> e.precision(buggyClassIndex)).average().orElse(Double.NaN);
+                double avgRecall = evaluationsForRun.stream().mapToDouble(e -> e.recall(buggyClassIndex)).average().orElse(Double.NaN);
+                double avgAuc = evaluationsForRun.stream().mapToDouble(e -> e.areaUnderROC(buggyClassIndex)).average().orElse(Double.NaN);
+                double avgKappa = evaluationsForRun.stream().mapToDouble(Evaluation::kappa).average().orElse(Double.NaN);
+                double avgF1 = evaluationsForRun.stream().mapToDouble(e -> e.fMeasure(buggyClassIndex)).average().orElse(Double.NaN);
 
                 EvaluationResult result = new EvaluationResult(
                         project, run, wekaClf.getName(),
@@ -166,8 +177,8 @@ public class WekaAnalysis {
                         avgPrecision, avgRecall, avgAuc, avgKappa, avgF1
                 );
                 this.crossValResults.add(result);
-            }
-        }
+            } // Fine loop run
+        } // Fine loop classificatori
         LOGGER.info("Finished generating Weka results and AGGREGATED ACUME input files.");
     }
 

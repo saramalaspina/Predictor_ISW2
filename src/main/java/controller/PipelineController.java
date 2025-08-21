@@ -68,8 +68,8 @@ public class PipelineController {
     public void executeClassifierAnalysis() throws Exception {
         System.out.println("\n[PHASE 2] Starting WEKA Machine Learning pipeline...");
         WekaAnalysis wekaAnalysis = new WekaAnalysis(project);
-        //wekaAnalysis.executeWalkForward();
-        wekaAnalysis.executeCrossValidation(config.getCrossValidationRuns());
+        wekaAnalysis.executeWalkForward();
+        wekaAnalysis.executeCrossValidation(config.getCrossValidationRuns(), config.getCrossValidationFolds());
         System.out.println("[PHASE 2] WEKA Machine Learning pipeline complete.\n");
     }
 

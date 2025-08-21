@@ -8,15 +8,17 @@ public enum ProjectConfig {
             "None",         // BEST_SAMPLING
             "None",         // BEST_FS (Feature Selection)
             "None",         // BEST_CS (Cost Sensitive)
-            1              // N_RUNS per Cross-Validation
+            2,             // N_RUNS per Cross-Validation
+            5          // N_Folds per Cross-Validation
     ),
     BOOKKEEPER(
             "BOOKKEEPER",
             "RandomForest",   // BEST_CLF_NAME
             "None",        // BEST_SAMPLING
             "None",    // BEST_FS
-            "None",         // BEST_CS
-            10               // N_RUNS per Cross-Validation
+            "None",     // BEST_CS
+            10,         // N_RUNS per Cross-Validation
+            10          // N_Folds per Cross-Validation
     );
 
     // Campi per memorizzare i valori delle costanti
@@ -26,15 +28,17 @@ public enum ProjectConfig {
     private final String bestFeatureSelection;
     private final String bestCostSensitive;
     private final int crossValidationRuns;
+    private final int crossValidationFolds;
 
     // Costruttore privato per inizializzare i campi
-    ProjectConfig(String projectName, String bestClfName, String bestSampling, String bestFs, String bestCs, int cvRuns) {
+    ProjectConfig(String projectName, String bestClfName, String bestSampling, String bestFs, String bestCs, int cvRuns, int cvFolds) {
         this.projectName = projectName;
         this.bestClassifierName = bestClfName;
         this.bestSampling = bestSampling;
         this.bestFeatureSelection = bestFs;
         this.bestCostSensitive = bestCs;
         this.crossValidationRuns = cvRuns;
+        this.crossValidationFolds = cvFolds;
     }
 
     public String getProjectName() {
@@ -59,6 +63,10 @@ public enum ProjectConfig {
 
     public int getCrossValidationRuns() {
         return crossValidationRuns;
+    }
+
+    public int getCrossValidationFolds() {
+        return crossValidationFolds;
     }
 
     //Metodo factory per ottenere la configurazione dal nome del progetto

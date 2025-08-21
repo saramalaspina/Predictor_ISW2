@@ -8,7 +8,7 @@ MaxChurn,0.1585
 NestingDepth,0.1434
 AvgChurn,0.1406
 "#Revisions",0.1106
-NSmells,0.1031
+NSmells,0.1044
 StmtDeleted,0.0835
 "#Parameters",0.0276
-NFix,0.0058
+NFix,0.0227

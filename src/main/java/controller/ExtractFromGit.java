@@ -1,24 +1,14 @@
 package controller;
 
-import com.github.javaparser.JavaParser;
 import com.github.javaparser.ParseProblemException;
-import com.github.javaparser.ParserConfiguration;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.MethodDeclaration;
 
-import com.github.javaparser.ast.body.VariableDeclarator;
-import com.github.javaparser.ast.expr.InstanceOfExpr;
-import com.github.javaparser.ast.expr.IntegerLiteralExpr;
-import com.github.javaparser.ast.stmt.BlockStmt;
-import com.github.javaparser.ast.stmt.CatchClause;
-import com.github.javaparser.ast.stmt.SwitchStmt;
 import model.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -26,14 +16,9 @@ import java.util.Date;
 import java.util.List;
 
 import org.eclipse.jgit.api.Git;
-import org.eclipse.jgit.api.InitCommand;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
-import org.eclipse.jgit.diff.DiffFormatter;
-import org.eclipse.jgit.diff.RawTextComparator;
-import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.lib.ObjectLoader;
-import org.eclipse.jgit.lib.ObjectReader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
@@ -44,6 +29,8 @@ import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import static controller.MetricCalculator.*;
+
 
 public class ExtractFromGit {
     private List<Ticket> ticketList;
@@ -53,14 +40,8 @@ public class ExtractFromGit {
 
     private Git git;
     private Repository repository;
-    private JavaParser javaParser;
 
     public ExtractFromGit(String projectName, List<Release> allReleases, List<Ticket> ticketList) throws IOException {
-
-        ParserConfiguration parserConfiguration = new ParserConfiguration();
-        this.javaParser = new JavaParser(parserConfiguration);
-
-        InitCommand init = Git.init();
 
         File repoDir = new File("/Users/saramalaspina/Desktop/" + projectName.toLowerCase() + "_isw2");
         File gitDir = new File(repoDir, ".git");
@@ -222,7 +203,7 @@ public class ExtractFromGit {
 
                                 if (!processedMethodsForRelease.contains(fqn)) {
                                     JavaMethod currentReleaseMethod = new JavaMethod(fqn, release);
-                                    currentReleaseMethod.setBodyHash(calculateBodyHash(md));
+                                    currentReleaseMethod.setBodyHash(GitUtils.calculateBodyHash(md));
 
                                     // Calculate Metrics
                                     int currentLoc = calculateLOC(md);
@@ -238,7 +219,7 @@ public class ExtractFromGit {
 
                                     allMethodsOfReleases.add(currentReleaseMethod);
                                     release.addMethod(currentReleaseMethod); // Associa il metodo alla sua release
-                                    currentReleaseMethod.setBodyHash(calculateBodyHash(md));
+                                    currentReleaseMethod.setBodyHash(GitUtils.calculateBodyHash(md));
                                     processedMethodsForRelease.add(fqn);
                                 }
                             });
@@ -253,47 +234,11 @@ public class ExtractFromGit {
         // Associazione commit ai metodi (storico)
         addCommitsToMethods(allMethodsOfReleases, this.commitList);
 
-        calculateNFix(allMethodsOfReleases);
+        calculateNFix(allMethodsOfReleases, this.ticketList, this.releaseList);
 
         return allMethodsOfReleases;
     }
 
-    private String calculateBodyHash(MethodDeclaration md) {
-        if (md == null) return null;
-        String normalizedBody = normalizeMethodBody(md);
-        if (normalizedBody.isEmpty()) return "EMPTY_BODY_HASH"; // O un altro placeholder
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] encodedhash = digest.digest(normalizedBody.getBytes(StandardCharsets.UTF_8));
-            return bytesToHex(encodedhash);
-        } catch (java.security.NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 Hashing error", e);
-        }
-    }
-
-    private static String bytesToHex(byte[] hash) {
-        StringBuilder hexString = new StringBuilder(2 * hash.length);
-        for (byte b : hash) {
-            String hex = Integer.toHexString(0xff & b);
-            if (hex.length() == 1) {
-                hexString.append('0');
-            }
-            hexString.append(hex);
-        }
-        return hexString.toString();
-    }
-
-    private String normalizeMethodBody(MethodDeclaration md) {
-        if (md == null || !md.getBody().isPresent()) {
-            return "";
-        }
-        // Rimuovi commenti, spazi bianchi eccessivi, ecc.
-        // Questo è un esempio MOLTO SEMPLICE. Una normalizzazione robusta è complessa.
-        String body = md.getBody().get().toString();
-        body = body.replaceAll("//.*|/\\*(?s:.*?)\\*/", ""); // Rimuovi commenti
-        body = body.replaceAll("\\s+", " "); // Sostituisci spazi multipli con uno singolo
-        return body.trim();
-    }
 
     public void addCommitsToMethods(List<JavaMethod> allMethods, List<RevCommit> commitListInput) throws IOException, GitAPIException {
         List<RevCommit> sortedCommits = new ArrayList<>(commitListInput);
@@ -305,10 +250,10 @@ public class ExtractFromGit {
             }
 
             RevCommit parent = commit.getParent(0);
-            List<DiffEntry> diffs = getDiffEntries(parent, commit);
+            List<DiffEntry> diffs = GitUtils.getDiffEntries(parent, commit, repository);
 
-            Map<String, String> oldFileContents = getFileContents(parent, diffs, true);
-            Map<String, String> newFileContents = getFileContents(commit, diffs, false);
+            Map<String, String> oldFileContents = GitUtils.getFileContents(parent, diffs, true, repository);
+            Map<String, String> newFileContents = GitUtils.getFileContents(commit, diffs, false, repository);
 
             for (DiffEntry diff : diffs) {
                 String filePath;
@@ -326,16 +271,16 @@ public class ExtractFromGit {
                 String oldContent = oldFileContents.getOrDefault(diff.getOldPath(), "");
                 String newContent = newFileContents.getOrDefault(diff.getNewPath(), "");
 
-                Map<String, MethodDeclaration> oldMethods = parseMethods(oldContent);
-                Map<String, MethodDeclaration> newMethods = parseMethods(newContent);
+                Map<String, MethodDeclaration> oldMethods = GitUtils.parseMethods(oldContent);
+                Map<String, MethodDeclaration> newMethods = GitUtils.parseMethods(newContent);
 
                 for (Map.Entry<String, MethodDeclaration> newMethodEntry : newMethods.entrySet()) {
                     String signature = newMethodEntry.getKey();
                     MethodDeclaration newMd = newMethodEntry.getValue();
                     MethodDeclaration oldMd = oldMethods.get(signature);
 
-                    String newBodyHash = calculateBodyHash(newMd);
-                    String oldBodyHash = (oldMd != null) ? calculateBodyHash(oldMd) : null;
+                    String newBodyHash = GitUtils.calculateBodyHash(newMd);
+                    String oldBodyHash = (oldMd != null) ? GitUtils.calculateBodyHash(oldMd) : null;
 
                     boolean changed;
                     if (oldMd == null) {
@@ -366,37 +311,7 @@ public class ExtractFromGit {
     }
 
 
-    private List<DiffEntry> getDiffEntries(RevCommit parent, RevCommit commit) throws IOException, GitAPIException {
-        try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
-            diffFormatter.setRepository(repository);
-            diffFormatter.setDiffComparator(RawTextComparator.DEFAULT);
-            diffFormatter.setContext(0); // Nessuna linea di contesto, solo le differenze
-            return diffFormatter.scan(parent.getTree(), commit.getTree());
-        }
-    }
 
-    private Map<String, String> getFileContents(RevCommit commit, List<DiffEntry> diffs, boolean useOldPath) throws IOException {
-        Map<String, String> contents = new HashMap<>();
-        try (ObjectReader reader = repository.newObjectReader()) {
-            for (DiffEntry diff : diffs) {
-                String path = useOldPath ? diff.getOldPath() : diff.getNewPath();
-                ObjectId id = useOldPath ? diff.getOldId().toObjectId() : diff.getNewId().toObjectId();
-
-                if (DiffEntry.DEV_NULL.equals(path)) continue; // Skip /dev/null
-
-                try {
-                    ObjectLoader loader = reader.open(id);
-                    ByteArrayOutputStream output = new ByteArrayOutputStream();
-                    loader.copyTo(output);
-                    contents.put(path, output.toString());
-                } catch (org.eclipse.jgit.errors.MissingObjectException e) {
-                    // Oggetto non trovato, potrebbe essere un file binario o un problema
-                    System.err.println("Missing object: " + id + " for path " + path + " in commit " + commit.getName());
-                }
-            }
-        }
-        return contents;
-    }
 
     private void updateMethodMetricsForCommit(List<JavaMethod> allProjectMethods, String filePath,
                                               MethodDeclaration currentMdAst_in_commit, RevCommit commit,
@@ -443,70 +358,6 @@ public class ExtractFromGit {
     }
 
 
-    private Map<String, MethodDeclaration> parseMethods(String content) {
-        Map<String, MethodDeclaration> methods = new HashMap<>();
-        if (content == null || content.isEmpty()) return methods;
-        try {
-            CompilationUnit cu = StaticJavaParser.parse(content);
-            cu.findAll(MethodDeclaration.class).forEach(md -> {
-                methods.put(JavaMethod.getSignature(md), md);
-            });
-        } catch (ParseProblemException | StackOverflowError ignored) {
-        }
-        return methods;
-    }
-
-
-    private int calculateLOC(MethodDeclaration md) {
-        if (!md.getBody().isPresent()) {
-            return 0;
-        }
-        String body = md.getBody().get().toString();
-        if (body.startsWith("/*") && body.contains("*/")) {
-            body = body.substring(body.indexOf("*/") + 2);
-        }
-
-        String[] lines = body.split("\r\n|\r|\n");
-        long count = Arrays.stream(lines)
-                .map(String::trim)
-                .filter(line -> !line.isEmpty() &&
-                        !line.startsWith("//") &&
-                        !(line.startsWith("/*") && line.endsWith("*/")) &&
-                        !line.equals("{") && !line.equals("}")
-                ).count();
-
-        if (count == 0 && lines.length > 2) {
-            boolean allCommentsOrEmpty = true;
-            for(String line : lines){
-                String trimmedLine = line.trim();
-                if(!trimmedLine.isEmpty() && !trimmedLine.startsWith("//") && !trimmedLine.startsWith("/*") && !trimmedLine.endsWith("*/") && !trimmedLine.equals("{") && !trimmedLine.equals("}")){
-                    allCommentsOrEmpty = false;
-                    break;
-                }
-            }
-            if(allCommentsOrEmpty) return 0;
-        }
-
-        return (int) count;
-    }
-
-    private int calculateNumberOfBranches(MethodDeclaration md) {
-        if (!md.getBody().isPresent()) {
-            return 0;
-        }
-        BranchDecisionCounterVisitor visitor = new BranchDecisionCounterVisitor();
-        md.getBody().get().accept(visitor, null);
-        return visitor.getCount();
-    }
-
-    private int calculateNestingDepth(MethodDeclaration md) {
-        if (!md.getBody().isPresent()) {
-            return 0;
-        }
-        NestingDepthVisitor visitor = new NestingDepthVisitor();
-        md.getBody().get().accept(visitor, null);
-        return visitor.getMaxDepth();
-    }
 
 
     public void setMethodBuggyness(List<JavaMethod> allProjectMethods) {
@@ -530,20 +381,20 @@ public class ExtractFromGit {
                 try {
                     if (fixCommit.getParentCount() == 0) continue;
                     RevCommit parentOfFix = fixCommit.getParent(0);
-                    List<DiffEntry> diffs = getDiffEntries(parentOfFix, fixCommit);
+                    List<DiffEntry> diffs = GitUtils.getDiffEntries(parentOfFix, fixCommit, repository);
 
-                    Map<String, String> newFileContentsInFix = getFileContents(fixCommit, diffs, false);
+                    Map<String, String> newFileContentsInFix = GitUtils.getFileContents(fixCommit, diffs, false, repository);
 
                     for (DiffEntry diff : diffs) {
                         String filePath = diff.getNewPath();
                         if (!filePath.endsWith(".java") || filePath.contains("/test/")) continue;
 
                         String newContent = newFileContentsInFix.getOrDefault(filePath, "");
-                        Map<String, MethodDeclaration> newMethodsInFix = parseMethods(newContent);
+                        Map<String, MethodDeclaration> newMethodsInFix = GitUtils.parseMethods(newContent);
 
                         // Per determinare quali metodi sono stati *effettivamente* modificati dal fix
-                        String oldContentInFix = getFileContents(parentOfFix, Collections.singletonList(diff), true).getOrDefault(diff.getOldPath(), "");
-                        Map<String, MethodDeclaration> oldMethodsInFix = parseMethods(oldContentInFix);
+                        String oldContentInFix = GitUtils.getFileContents(parentOfFix, Collections.singletonList(diff), true, repository).getOrDefault(diff.getOldPath(), "");
+                        Map<String, MethodDeclaration> oldMethodsInFix = GitUtils.parseMethods(oldContentInFix);
 
 
                         for (Map.Entry<String, MethodDeclaration> fixedMethodEntry : newMethodsInFix.entrySet()) {
@@ -551,8 +402,8 @@ public class ExtractFromGit {
                             MethodDeclaration fixedMd = fixedMethodEntry.getValue();
                             MethodDeclaration preFixMd = oldMethodsInFix.get(signature);
 
-                            String hashFixed = calculateBodyHash(fixedMd);
-                            String hashPreFix = calculateBodyHash(preFixMd);
+                            String hashFixed = GitUtils.calculateBodyHash(fixedMd);
+                            String hashPreFix = GitUtils.calculateBodyHash(preFixMd);
 
                             boolean actuallyChangedByFix = (preFixMd == null && fixedMd != null) ||
                                     (hashPreFix != null && hashFixed != null && !hashPreFix.equals(hashFixed)) ||
@@ -599,69 +450,6 @@ public class ExtractFromGit {
 
     }
 
-    public void calculateNFix(List<JavaMethod> allMethods) {
-        Map<String, Ticket> commitNameToTicketMap = new HashMap<>();
-        for (Ticket ticket : this.ticketList) {
-            // Assicurati che ticketList contenga solo i bug (lo fa già dalla query JIRA)
-            for (RevCommit commit : ticket.getCommitList()) {
-                commitNameToTicketMap.put(commit.getName(), ticket);
-            }
-        }
-
-        for (JavaMethod method : allMethods) {
-            int nFixCount = 0;
-            Release currentMethodRelease = method.getRelease();
-
-            for (RevCommit commit : method.getCommits()) {
-                // Controlla se il commit è un "fix commit" (associato a un ticket di bug)
-                if (commitNameToTicketMap.containsKey(commit.getName())) {
-
-                    Release commitRelease = GitUtils.getReleaseOfCommit(commit, this.fullReleaseList);
-                    if (commitRelease != null && commitRelease.getId() < currentMethodRelease.getId()) {
-                        nFixCount++;
-                    }
-                }
-            }
-            method.setNFix(nFixCount);
-        }
-    }
-
-    private int calculateCodeSmells(MethodDeclaration md, int cyclomaticComplexity, int loc, int nestingDepth, int numParameters) {
-        if (!md.getBody().isPresent()) return 0;
-        int smellCount = 0;
-        BlockStmt body = md.getBody().get();
-
-        if (cyclomaticComplexity > 7) smellCount++;
-        if (loc > 30) smellCount++;
-        if (nestingDepth > 4) smellCount++;
-        if (numParameters > 5) smellCount++;
-
-        for (SwitchStmt switchStmt : body.findAll(SwitchStmt.class)) {
-            if (switchStmt.getEntries().stream().noneMatch(entry -> entry.getLabels().isEmpty())) {
-                smellCount++;
-            }
-        }
-        for (CatchClause catchClause : body.findAll(CatchClause.class)) {
-            if (catchClause.getBody().getStatements().isEmpty()) {
-                smellCount++;
-            }
-        }
-        if (body.findAll(InstanceOfExpr.class).size() > 2) {
-            smellCount++;
-        }
-        String methodName = md.getNameAsString();
-        if (methodName.equals("equals") || methodName.equals("hashCode") || methodName.equals("toString")) {
-            if (md.getAnnotations().stream().noneMatch(a -> a.getNameAsString().equals("Override"))) {
-                smellCount++;
-            }
-        }
-        long magicNumberCount = body.findAll(IntegerLiteralExpr.class).stream()
-                .filter(n -> { try { int val = n.asInt(); return val != 0 && val != 1 && val != -1; } catch (Exception e) { return true; } })
-                .filter(n -> n.getParentNode().map(p -> !(p instanceof VariableDeclarator)).orElse(true))
-                .count();
-        if (magicNumberCount > 1) {
-            smellCount++;
-        }
-        return smellCount;
-    }
 }
+
+
