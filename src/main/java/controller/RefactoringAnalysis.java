@@ -28,7 +28,7 @@ public class RefactoringAnalysis {
         if ("BOOKKEEPER".equalsIgnoreCase(projectName)) {
             methodName = "main";
         } else if ("OPENJPA".equalsIgnoreCase(projectName)) {
-            methodName = "ilTuoMetodoOriginale";
+            methodName = "convert";
         } else {
             System.err.println("Progetto non riconosciuto: " + projectName);
             return;
@@ -177,6 +177,7 @@ public class RefactoringAnalysis {
      */
     public static void main(String[] args) {
         RefactoringAnalysis analyzer = new RefactoringAnalysis();
-        analyzer.execute("BOOKKEEPER", "LOC");
+        //analyzer.execute("BOOKKEEPER", "LOC");
+        analyzer.execute("OPENJPA", "NestingDepth");
     }
 }

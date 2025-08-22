@@ -1,0 +1,10 @@
+Method,Version,LOC,NumParameters,NumBranches,NestingDepth,NumCodeSmells
+convert,Original,70,2,41,11,5
+
+// --- Refactoring details ---
+convert,Refactored_EntryPoint,12,2,5,3,2
+convertNonNumeric,Refactored_Helper,27,2,20,3,2
+convertNumeric,Refactored_Helper,4,2,1,1,0
+
+// --- Aggregate Results ---
+convert (aggregated),Refactored_Aggregate,43,2,26,3,4
