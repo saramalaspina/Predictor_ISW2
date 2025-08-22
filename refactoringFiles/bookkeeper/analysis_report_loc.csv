@@ -1,0 +1,16 @@
+Method,Version,LOC,NumParameters,NumBranches,NestingDepth,NumCodeSmells
+main,Original,117,1,16,3,3
+
+// --- Refactoring details ---
+main,Refactored_EntryPoint,18,1,2,1,0
+parseArguments,Refactored_Helper,24,1,1,1,1
+logParameters,Refactored_Helper,1,1,0,0,0
+setupTimeout,Refactored_Helper,8,1,1,1,0
+run,Refactored_Helper,2,0,0,0,0
+runWarmup,Refactored_Helper,4,1,0,0,0
+setupZooKeeperCoordination,Refactored_Helper,21,1,5,2,2
+processAndSaveResults,Refactored_Helper,14,3,2,2,1
+BenchmarkConfig (constructor),Refactored_Helper,19,1,0,0,0
+
+// --- Aggregate Results ---
+main (aggregated),Refactored_Aggregate,111,1,11,2,4

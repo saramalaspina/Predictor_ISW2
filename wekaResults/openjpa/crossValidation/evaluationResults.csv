@@ -1,0 +1,3 @@
+Project,Iteration,Classifier,FeatureSelection,Sampling,CostSensitive,Precision,Recall,AUC,Kappa,F1-Score
+OPENJPA,1,NaiveBayes,None,None,None,0.068,0.349,0.849,0.098,0.114
+OPENJPA,2,NaiveBayes,None,None,None,0.068,0.348,0.849,0.098,0.114

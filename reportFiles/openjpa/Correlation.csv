@@ -7,8 +7,8 @@ MaxChurn,0.1241
 "#Authors",0.1137
 AvgChurn,0.1137
 "#Revisions",0.1094
-NFix,0.1002
-NSmells,0.0993
+NFix,0.1033
+NSmells,0.0880
 StmtDeleted,0.0488
 "#Parameters",0.0473
 Release,0.0060
