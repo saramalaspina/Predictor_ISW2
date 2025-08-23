@@ -32,7 +32,8 @@ public class Main {
             System.out.println("1: [Milestone 1] Execute Data Extraction and Dataset Creation");
             System.out.println("2: [Step 2] Execute WEKA Classifier Analysis");
             System.out.println("3: Execute Correlation Analysis");
-            System.out.println("4: Execute What-If Analysis");
+            System.out.println("4: Execute Refactoring Analysis");
+            System.out.println("5: Execute What-If Analysis");
             System.out.println("0: Exit");
             System.out.print("Enter your choice: ");
 
@@ -50,6 +51,9 @@ public class Main {
                         controller.executeCorrelationAnalysis();
                         break;
                     case "4":
+                        controller.executeRefactoringAnalysis();
+                        break;
+                    case "5":
                         controller.executeWhatIfAnalysis();
                         break;
                     case "0":

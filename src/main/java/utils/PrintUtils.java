@@ -1,5 +1,8 @@
 package utils;
 
+import com.github.javaparser.ast.body.ConstructorDeclaration;
+import com.github.javaparser.ast.body.MethodDeclaration;
+import controller.MetricCalculator;
 import model.*;
 import org.eclipse.jgit.revwalk.RevCommit;
 
@@ -193,5 +196,69 @@ public class PrintUtils {
             writer.printf("C,Actual,%d%n", params[6]);
             writer.printf("C,Estimated,%d%n", params[7]);
         }
+    }
+
+    /**
+     * Calcola e scrive le metriche per un singolo MethodDeclaration.
+     * UTILIZZA I TUOI METODI DI CALCOLO.
+     */
+    public static void printMetricsForMethod(MethodDeclaration md, String versionTag, PrintWriter writer) {
+        int loc = MetricCalculator.calculateLOC(md);
+        int numParams = md.getParameters().size();
+        int numBranches = MetricCalculator.calculateNumberOfBranches(md);
+        int nestingDepth = MetricCalculator.calculateNestingDepth(md);
+        int numSmells = MetricCalculator.calculateCodeSmells(md, numBranches, loc, nestingDepth, numParams);
+
+        writer.printf("%s,%s,%d,%d,%d,%d,%d%n", md.getNameAsString(), versionTag, loc, numParams, numBranches, nestingDepth, numSmells);
+    }
+
+    /**
+     * Calcola e scrive le metriche per un singolo ConstructorDeclaration.
+     * UTILIZZA I TUOI METODI DI CALCOLO.
+     */
+    public static void printMetricsForConstructor(ConstructorDeclaration cd, String versionTag, PrintWriter writer) {
+        MethodDeclaration fakeMethod = new MethodDeclaration().setBody(cd.getBody());
+        cd.getParameters().forEach(fakeMethod::addParameter);
+
+        int loc = MetricCalculator.calculateLOC(fakeMethod);
+        int numParams = cd.getParameters().size();
+        int numBranches = MetricCalculator.calculateNumberOfBranches(fakeMethod);
+        int nestingDepth = MetricCalculator.calculateNestingDepth(fakeMethod);
+        int numSmells = MetricCalculator.calculateCodeSmells(fakeMethod, numBranches, loc, nestingDepth, numParams);
+
+        writer.printf("%s (constructor),%s,%d,%d,%d,%d,%d%n", cd.getNameAsString(), versionTag, loc, numParams, numBranches, nestingDepth, numSmells);
+    }
+
+    /**
+     * Calcola e scrive le metriche aggregate per l'intero sistema rifattorizzato.
+     */
+    public static void printAggregatedMetrics(MethodDeclaration mainRefactored, List<MethodDeclaration> allMethods, List<ConstructorDeclaration> allConstructors, PrintWriter writer) {
+        int totalLoc = 0;
+        int totalBranches = 0;
+        int maxNesting = 0;
+        int totalSmells = 0;
+
+        for (MethodDeclaration md : allMethods) {
+            totalLoc += MetricCalculator.calculateLOC(md);
+            totalBranches += MetricCalculator.calculateNumberOfBranches(md);
+            int nesting = MetricCalculator.calculateNestingDepth(md);
+            if (nesting > maxNesting) maxNesting = nesting;
+            totalSmells += MetricCalculator.calculateCodeSmells(md, MetricCalculator.calculateNumberOfBranches(md), MetricCalculator.calculateLOC(md), nesting, md.getParameters().size());
+        }
+
+        for (ConstructorDeclaration cd : allConstructors) {
+            MethodDeclaration fakeMethod = new MethodDeclaration().setBody(cd.getBody());
+            cd.getParameters().forEach(fakeMethod::addParameter);
+            totalLoc += MetricCalculator.calculateLOC(fakeMethod);
+            totalBranches += MetricCalculator.calculateNumberOfBranches(fakeMethod);
+            int nesting = MetricCalculator.calculateNestingDepth(fakeMethod);
+            if (nesting > maxNesting) maxNesting = nesting;
+            totalSmells += MetricCalculator.calculateCodeSmells(fakeMethod, MetricCalculator.calculateNumberOfBranches(fakeMethod), MetricCalculator.calculateLOC(fakeMethod), nesting, cd.getParameters().size());
+        }
+
+        int mainParams = mainRefactored.getParameters().size();
+
+        writer.printf("%s (aggregated),Refactored_Aggregate,%d,%d,%d,%d,%d%n",
+                mainRefactored.getNameAsString(), totalLoc, mainParams, totalBranches, maxNesting, totalSmells);
     }
 }

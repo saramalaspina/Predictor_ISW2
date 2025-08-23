@@ -82,8 +82,20 @@ public class PipelineController {
         System.out.println("[PHASE 3] Correlation analysis complete.\n");
     }
 
+    /**
+     * Esegue la Fase 4: Refactoring
+     */
+    public void executeRefactoringAnalysis() throws Exception {
+        System.out.println("\n[PHASE 4] Starting Refactoring Analysis...");
+        RefactoringAnalysis.execute(project, config.getAFMethod(), config.getAFeature());
+        System.out.println("[PHASE 4] Refactoring analysis complete.\n");
+    }
+
+    /**
+     * Esegue la Fase 5: What IF
+     */
     public void executeWhatIfAnalysis() throws Exception {
-        System.out.println("\n[PHASE 4] Starting What-If Analysis...");
+        System.out.println("\n[PHASE 5] Starting What-If Analysis...");
 
         // --- CONFIGURAZIONE DEL MIGLIOR CLASSIFICATORE (BClassifier) ---
         final String bestClassifierName = config.getBestClassifierName();
@@ -107,7 +119,7 @@ public class PipelineController {
         WhatIfAnalysis whatIf = new WhatIfAnalysis(fullDataset, bClassifier, project);
         whatIf.execute();
 
-        System.out.println("[PHASE 4] What-If Analysis complete. Results saved to whatIf.csv.\n");
+        System.out.println("[PHASE 5] What-If Analysis complete. Results saved to whatIf.csv.\n");
     }
 
 
