@@ -105,81 +105,87 @@ public class WekaAnalysis {
         LOGGER.log(Level.INFO, "--- FOLD analysis finished for project: {0} ---", project);
     }
 
+    // Cross Validation Parallela
     private void runCrossValidationClassification(int numRuns, int numFolds) throws Exception {
-        LOGGER.info("Starting MEMORY-OPTIMIZED classification and ACUME file generation...");
+        LOGGER.info("Starting PARALLELIZED cross-validation classification and ACUME file generation...");
         String acumeOutputDir = String.format("acumeFiles/%s/crossValidation/", this.project.toLowerCase());
         new File(acumeOutputDir).mkdirs();
 
-        List<WekaClassifier> classifiersToTest = ClassifierBuilder.buildClassifiers(this.fullDataset);
-        int totalClassifiers = classifiersToTest.size();
-        int classifierCount = 0;
+        List<WekaClassifier> classifierConfigurations = ClassifierBuilder.buildClassifiers(this.fullDataset);
 
-        // Loop esterno sui classificatori
-        for (WekaClassifier wekaClf : classifiersToTest) {
-            classifierCount++;
-            // <-- NUOVO LOG: Indica quale classificatore sta per essere processato
-            LOGGER.log(Level.INFO, "==========================================================");
-            LOGGER.log(Level.INFO, "Processing Classifier {0}/{1}: {2}", new Object[]{classifierCount, totalClassifiers, wekaClf.getDescriptiveName()});
-            LOGGER.log(Level.INFO, "==========================================================");
+        classifierConfigurations.parallelStream().forEach(config -> {
+            try {
+                LOGGER.log(Level.INFO, "==========================================================");
+                LOGGER.log(Level.INFO, "Processing Classifier Config: {0} on thread {1}", new Object[]{config.getDescriptiveName(), Thread.currentThread().getName()});
+                LOGGER.log(Level.INFO, "==========================================================");
 
-            // Per ogni run, calcoliamo le medie e salviamo i risultati per QUESTO classificatore
-            for (int run = 1; run <= numRuns; run++) {
-                // <-- NUOVO LOG: Inizio di una nuova run
-                LOGGER.log(Level.INFO, "--- Starting Run {0}/{1} for classifier {2} ---", new Object[]{run, numRuns, wekaClf.getDescriptiveName()});
+                for (int run = 1; run <= numRuns; run++) {
+                    LOGGER.log(Level.INFO, "--- Starting Run {0}/{1} for config {2} ---", new Object[]{run, numRuns, config.getDescriptiveName()});
 
-                List<PredictionResult> aggregatedPredictionsForRun = new ArrayList<>();
-                List<Evaluation> evaluationsForRun = new ArrayList<>();
+                    List<PredictionResult> aggregatedPredictionsForRun = new ArrayList<>();
+                    List<Evaluation> evaluationsForRun = new ArrayList<>();
 
-                Random rand = new Random(run);
-                Instances randData = new Instances(this.fullDataset);
-                randData.randomize(rand);
-                if (randData.classAttribute().isNominal()) {
-                    randData.stratify(numFolds);
+                    Random rand = new Random(run);
+                    Instances randData = new Instances(this.fullDataset);
+                    randData.randomize(rand);
+                    if (randData.classAttribute().isNominal()) {
+                        randData.stratify(numFolds);
+                    }
+
+                    for (int fold = 0; fold < numFolds; fold++) {
+                        LOGGER.log(Level.FINE, "Processing fold {0}/{1} for {2}...", new Object[]{fold + 1, numFolds, config.getDescriptiveName()});
+
+                        Instances trainingSet = randData.trainCV(numFolds, fold, rand);
+                        Instances testingSet = randData.testCV(numFolds, fold);
+                        if (testingSet.isEmpty()) continue;
+
+                        // Usiamo il builder per creare un'istanza nuova e pulita.
+                        // Questo garantisce la thread-safety indipendentemente dalla versione di Weka.
+                        WekaClassifier freshWekaClassifier = ClassifierBuilder.buildSpecificClassifier(
+                                config.getName(), config.getSampling(), config.getFeatureSelection(), config.getCostSensitive(), trainingSet
+                        );
+                        Classifier classifierInstance = freshWekaClassifier.getClassifier();
+
+                        // Ora addestriamo l'istanza appena creata
+                        classifierInstance.buildClassifier(trainingSet);
+
+                        aggregatedPredictionsForRun.addAll(getPredictionResults(classifierInstance, testingSet));
+
+                        Evaluation eval = new Evaluation(trainingSet);
+                        eval.evaluateModel(classifierInstance, testingSet);
+                        evaluationsForRun.add(eval);
+                    }
+
+                    LOGGER.log(Level.INFO, "--- Finished Run {0} for {1}. Saving results... ---", new Object[]{run, config.getDescriptiveName()});
+
+                    String classifierName = config.getDescriptiveName().replaceAll("\\s+", "");
+                    String acumeOutputFile = String.format("%s%s_%s_run%d.csv",
+                            acumeOutputDir, project.toLowerCase(), classifierName.toLowerCase(), run);
+                    AcumeUtils.exportToAcumeCsv(acumeOutputFile, aggregatedPredictionsForRun);
+
+                    int buggyClassIndex = this.fullDataset.classAttribute().indexOfValue("yes");
+                    double avgPrecision = evaluationsForRun.stream().mapToDouble(e -> e.precision(buggyClassIndex)).average().orElse(Double.NaN);
+                    double avgRecall = evaluationsForRun.stream().mapToDouble(e -> e.recall(buggyClassIndex)).average().orElse(Double.NaN);
+                    double avgAuc = evaluationsForRun.stream().mapToDouble(e -> e.areaUnderROC(buggyClassIndex)).average().orElse(Double.NaN);
+                    double avgKappa = evaluationsForRun.stream().mapToDouble(Evaluation::kappa).average().orElse(Double.NaN);
+                    double avgF1 = evaluationsForRun.stream().mapToDouble(e -> e.fMeasure(buggyClassIndex)).average().orElse(Double.NaN);
+
+                    EvaluationResult result = new EvaluationResult(
+                            project, run, config.getName(),
+                            config.getFeatureSelection(), config.getSampling(), config.getCostSensitive(),
+                            avgPrecision, avgRecall, avgAuc, avgKappa, avgF1
+                    );
+
+                    synchronized (this.crossValResults) {
+                        this.crossValResults.add(result);
+                    }
                 }
+            } catch (Exception e) {
+                LOGGER.log(Level.SEVERE, "An error occurred while processing classifier config " + config.getDescriptiveName(), e);
+            }
+        });
 
-                for (int fold = 0; fold < numFolds; fold++) {
-                    // <-- NUOVO LOG: Inizio di un nuovo fold
-                    LOGGER.log(Level.FINE, "Processing fold {0}/{1}...", new Object[]{fold + 1, numFolds});
-
-                    Instances trainingSet = randData.trainCV(numFolds, fold, rand);
-                    Instances testingSet = randData.testCV(numFolds, fold);
-                    if (testingSet.isEmpty()) continue;
-
-                    // Addestra e valuta solo il classificatore corrente
-                    wekaClf.getClassifier().buildClassifier(trainingSet);
-
-                    aggregatedPredictionsForRun.addAll(getPredictionResults(wekaClf.getClassifier(), testingSet));
-
-                    Evaluation eval = new Evaluation(trainingSet);
-                    eval.evaluateModel(wekaClf.getClassifier(), testingSet);
-                    evaluationsForRun.add(eval);
-                } // Fine loop fold
-
-                // <-- NUOVO LOG: Fine di una run e salvataggio dei risultati
-                LOGGER.log(Level.INFO, "--- Finished Run {0}. Saving aggregated results... ---", run);
-
-                // Ora che la run è finita, salva i risultati per questo classificatore
-                String classifierName = wekaClf.getDescriptiveName();
-                String acumeOutputFile = String.format("%s%s_%s_run%d.csv",
-                        acumeOutputDir, project.toLowerCase(), classifierName.toLowerCase(), run);
-                AcumeUtils.exportToAcumeCsv(acumeOutputFile, aggregatedPredictionsForRun);
-
-                int buggyClassIndex = this.fullDataset.classAttribute().indexOfValue("yes");
-                double avgPrecision = evaluationsForRun.stream().mapToDouble(e -> e.precision(buggyClassIndex)).average().orElse(Double.NaN);
-                double avgRecall = evaluationsForRun.stream().mapToDouble(e -> e.recall(buggyClassIndex)).average().orElse(Double.NaN);
-                double avgAuc = evaluationsForRun.stream().mapToDouble(e -> e.areaUnderROC(buggyClassIndex)).average().orElse(Double.NaN);
-                double avgKappa = evaluationsForRun.stream().mapToDouble(Evaluation::kappa).average().orElse(Double.NaN);
-                double avgF1 = evaluationsForRun.stream().mapToDouble(e -> e.fMeasure(buggyClassIndex)).average().orElse(Double.NaN);
-
-                EvaluationResult result = new EvaluationResult(
-                        project, run, wekaClf.getName(),
-                        wekaClf.getFeatureSelection(), wekaClf.getSampling(), wekaClf.getCostSensitive(),
-                        avgPrecision, avgRecall, avgAuc, avgKappa, avgF1
-                );
-                this.crossValResults.add(result);
-            } // Fine loop run
-        } // Fine loop classificatori
-        LOGGER.info("Finished generating Weka results and AGGREGATED ACUME input files.");
+        LOGGER.info("Finished all parallel tasks. Weka results and ACUME input files are generated.");
     }
 
     // --- CORE CLASSIFICATION LOGIC ---
