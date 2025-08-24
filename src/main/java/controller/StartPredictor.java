@@ -1,12 +1,12 @@
-import controller.PipelineController;
+package controller;
+
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-public class Main {
+public class StartPredictor {
 
     public static void main(String[] args) {
-        // Imposta il logging una sola volta
         Logger.getLogger("").setLevel(Level.INFO);
 
         Scanner scanner = new Scanner(System.in);
