@@ -5,12 +5,14 @@ import model.PredictionResult;
 import model.WekaClassifier;
 import utils.AcumeUtils;
 import utils.PrintUtils;
-import utils.WekaUtils;
 import weka.classifiers.Classifier;
 import weka.classifiers.Evaluation;
 import weka.core.Attribute;
 import weka.core.Instance;
 import weka.core.Instances;
+import weka.core.converters.ArffSaver;
+import weka.core.converters.CSVLoader;
+import weka.core.converters.ConverterUtils.DataSource;
 import weka.filters.Filter;
 import weka.filters.unsupervised.attribute.Remove;
 
@@ -35,10 +37,13 @@ public class WekaAnalysis {
         this.walkForwardResults = new ArrayList<>();
         this.crossValResults = new ArrayList<>();
 
+        // Carica il dataset dal CSV una sola volta all'inizio
         String datasetCsvPath = String.format("reportFiles/%s/Dataset.csv", project.toLowerCase());
         LOGGER.info("Loading full dataset from CSV: " + datasetCsvPath);
 
-        Instances rawData = WekaUtils.loadInstancesFromCsv(datasetCsvPath);
+        CSVLoader loader = new CSVLoader();
+        loader.setSource(new File(datasetCsvPath));
+        Instances rawData = loader.getDataSet();
 
         Remove removeFilter = new Remove();
         removeFilter.setAttributeIndices("1"); // Rimuove la prima colonna (FullyQualifiedName)
@@ -48,14 +53,17 @@ public class WekaAnalysis {
         if (this.fullDataset.classIndex() == -1) {
             this.fullDataset.setClassIndex(this.fullDataset.numAttributes() - 1);
         }
+        LOGGER.info(String.format("Dataset for %s loaded successfully with %d instances and %d attributes.",
+                project, this.fullDataset.numInstances(), this.fullDataset.numAttributes()));
     }
 
-    // --- WALK-FORWARD ANALYSIS ---
+    // --- WALK-FORWARD ANALYSIS (con ARFF) ---
 
     public void executeWalkForward() {
         LOGGER.log(Level.INFO, "--- Starting WALK-FORWARD analysis for project: {0} ---", project);
         try {
-            runWalkForwardClassification();
+            prepareWalkForwardArffs();
+            runWalkForwardFromArffs();
             saveResults("walkForward", this.walkForwardResults);
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "An error occurred during Walk-Forward analysis", e);
@@ -63,11 +71,8 @@ public class WekaAnalysis {
         LOGGER.log(Level.INFO, "--- Walk-Forward analysis finished for project: {0} ---", project);
     }
 
-    private void runWalkForwardClassification() throws Exception {
-        LOGGER.info("Starting walk-forward classification and ACUME file generation...");
-        String acumeOutputDir = String.format("acumeFiles/%s/walkForward/", this.project.toLowerCase());
-        new File(acumeOutputDir).mkdirs();
-
+    private void prepareWalkForwardArffs() throws IOException {
+        LOGGER.info("Preparing ARFF files for walk-forward validation...");
         Attribute releaseAttr = this.fullDataset.attribute("Release");
         if (releaseAttr == null) throw new IllegalStateException("Dataset must have a 'Release' attribute.");
         int releaseIndex = releaseAttr.index();
@@ -76,28 +81,117 @@ public class WekaAnalysis {
                 .mapToDouble(i -> fullDataset.instance(i).value(releaseIndex))
                 .max().orElse(0);
 
+        ArffSaver saver = new ArffSaver();
         for (int i = 1; i < maxRelease; i++) {
             Instances trainingSet = filterInstancesByRelease(this.fullDataset, releaseIndex, i, true);
             Instances testingSet = filterInstancesByRelease(this.fullDataset, releaseIndex, i + 1, false);
 
             if (testingSet.isEmpty()) continue;
 
-            LOGGER.log(Level.INFO, "--- WF Iteration {0}: Training on {1}, Testing on {2} ---", new Object[]{i, trainingSet.numInstances(), testingSet.numInstances()});
-            performSingleClassification(trainingSet, testingSet, this.walkForwardResults, acumeOutputDir, "wf_iter" + i, i);
+            String iterDir = String.format("arffFiles/%s/walkForward/iteration_%d", project.toLowerCase(), i);
+            new File(iterDir).mkdirs();
+
+            saver.setInstances(trainingSet);
+            saver.setFile(new File(iterDir + "/Training.arff"));
+            saver.writeBatch();
+
+            saver.setInstances(testingSet);
+            saver.setFile(new File(iterDir + "/Testing.arff"));
+            saver.writeBatch();
         }
+        LOGGER.info("Walk-forward ARFF files preparation complete.");
     }
 
-    // --- CROSS-VALIDATION ANALYSIS ---
+
+    private void runWalkForwardFromArffs() throws Exception {
+        LOGGER.info("Starting PARALLELIZED walk-forward classification from ARFF files...");
+        String acumeOutputDir = String.format("acumeFiles/%s/input/walkForward/", this.project.toLowerCase());
+        new File(acumeOutputDir).mkdirs();
+
+        int maxRelease = (int) this.fullDataset.attributeStats(this.fullDataset.attribute("Release").index()).numericStats.max;
+
+        // Il loop esterno sulle release (iterazioni) DEVE rimanere sequenziale
+        // per rispettare la cronologia temporale.
+        for (int i = 1; i < maxRelease; i++) {
+            String trainingPath = String.format("arffFiles/%s/walkForward/iteration_%d/Training.arff", project.toLowerCase(), i);
+            String testingPath = String.format("arffFiles/%s/walkForward/iteration_%d/Testing.arff", project.toLowerCase(), i);
+
+            if (!new File(trainingPath).exists() || !new File(testingPath).exists()) continue;
+
+            DataSource trainingSource = new DataSource(trainingPath);
+            Instances trainingSet = trainingSource.getDataSet();
+            trainingSet.setClassIndex(trainingSet.numAttributes() - 1);
+
+            DataSource testingSource = new DataSource(testingPath);
+            Instances testingSet = testingSource.getDataSet();
+            testingSet.setClassIndex(testingSet.numAttributes() - 1);
+
+            if (testingSet.isEmpty()) continue;
+
+            LOGGER.log(Level.INFO, "--- WF Iteration {0}: Training on {1}, Testing on {2} ---", new Object[]{i, trainingSet.numInstances(), testingSet.numInstances()});
+
+            // Otteniamo la lista delle configurazioni da testare per questa iterazione
+            List<WekaClassifier> classifiersToTest = ClassifierBuilder.buildClassifiers(trainingSet);
+            int buggyClassIndex = trainingSet.classAttribute().indexOfValue("yes");
+            final int iterationId = i; // Copia final per la lambda
+
+            // Parallelizziamo il test dei classificatori
+            classifiersToTest.parallelStream().forEach(config -> {
+                try {
+                    LOGGER.log(Level.INFO, "Processing classifier {0} for WF iteration {1} on thread {2}",
+                            new Object[]{config.getDescriptiveName(), iterationId, Thread.currentThread().getName()});
+
+                    // Ricrea un'istanza fresca del classificatore per garantire la thread-safety
+                    WekaClassifier freshWekaClassifier = ClassifierBuilder.buildSpecificClassifier(
+                            config.getName(), config.getSampling(), config.getFeatureSelection(), config.getCostSensitive(), trainingSet
+                    );
+                    Classifier classifierInstance = freshWekaClassifier.getClassifier();
+
+                    // Addestra il classificatore
+                    classifierInstance.buildClassifier(trainingSet);
+
+                    // Ottieni le predizioni
+                    List<PredictionResult> predictionResults = getPredictionResults(classifierInstance, testingSet);
+
+                    // Salva il file ACUME
+                    String fileSuffix = "wf_iter" + iterationId + ".csv";
+                    String descriptiveFileName = config.getDescriptiveName().replaceAll("\\s+", "") + "_" + fileSuffix;
+                    String acumeOutputFile = acumeOutputDir + project.toLowerCase() + "_" + descriptiveFileName;
+                    AcumeUtils.exportToAcumeCsv(acumeOutputFile, predictionResults);
+
+                    // Valuta con Weka
+                    Evaluation eval = new Evaluation(trainingSet);
+                    eval.evaluateModel(classifierInstance, testingSet);
+
+                    EvaluationResult result = new EvaluationResult(
+                            project, iterationId, config.getName(),
+                            config.getFeatureSelection(), config.getSampling(), config.getCostSensitive(),
+                            eval.precision(buggyClassIndex), eval.recall(buggyClassIndex),
+                            eval.areaUnderROC(buggyClassIndex), eval.kappa(), eval.fMeasure(buggyClassIndex)
+                    );
+
+                    // Sincronizza l'aggiunta alla lista dei risultati
+                    synchronized (this.walkForwardResults) {
+                        this.walkForwardResults.add(result);
+                    }
+                } catch (Exception e) {
+                    LOGGER.log(Level.SEVERE, "Error processing classifier in Walk-Forward iteration " + iterationId, e);
+                }
+            }); // Fine del parallelStream
+        } // Fine del loop sulle release
+    }
+
+    // --- CROSS-VALIDATION ANALYSIS (con ARFF e Parallela) ---
 
     public void executeCrossValidation(int numRuns, int numFolds) {
-        System.out.println("Cross Validation " + numRuns + " Times " + numFolds + " Folds");
-        LOGGER.log(Level.INFO, "--- Starting FOLD analysis for project: {0} ---", project);
+        LOGGER.log(Level.INFO, "--- Starting {0}-times {1}-fold analysis for project: {2} ---", new Object[]{numRuns, numFolds, project});
         try {
             if (this.fullDataset.isEmpty()) {
                 LOGGER.severe("Dataset is empty, aborting cross-validation.");
                 return;
             }
-            runCrossValidationClassification(numRuns, numFolds);
+            prepareCrossValidationArffs(numRuns, numFolds);
+            runCrossValidationFromArffs(numRuns, numFolds);
             saveResults("crossValidation", this.crossValResults);
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "An error occurred during FOLD analysis", e);
@@ -105,10 +199,38 @@ public class WekaAnalysis {
         LOGGER.log(Level.INFO, "--- FOLD analysis finished for project: {0} ---", project);
     }
 
-    // Cross Validation Parallela
-    private void runCrossValidationClassification(int numRuns, int numFolds) throws Exception {
-        LOGGER.info("Starting PARALLELIZED cross-validation classification and ACUME file generation...");
-        String acumeOutputDir = String.format("acumeFiles/%s/crossValidation/", this.project.toLowerCase());
+    private void prepareCrossValidationArffs(int numRuns, int numFolds) throws IOException {
+        LOGGER.info(String.format("Preparing ARFF files for %d-times %d-fold cross-validation...", numRuns, numFolds));
+        ArffSaver saver = new ArffSaver();
+        for (int run = 1; run <= numRuns; run++) {
+            Random rand = new Random(run);
+            Instances randData = new Instances(this.fullDataset);
+            randData.randomize(rand);
+            if (randData.classAttribute().isNominal()) {
+                randData.stratify(numFolds);
+            }
+            for (int fold = 0; fold < numFolds; fold++) {
+                Instances train = randData.trainCV(numFolds, fold, rand);
+                Instances test = randData.testCV(numFolds, fold);
+
+                String foldDir = String.format("arffFiles/%s/crossValidation/run_%d/fold_%d", project.toLowerCase(), run, fold);
+                new File(foldDir).mkdirs();
+
+                saver.setInstances(train);
+                saver.setFile(new File(foldDir + "/Training.arff"));
+                saver.writeBatch();
+
+                saver.setInstances(test);
+                saver.setFile(new File(foldDir + "/Testing.arff"));
+                saver.writeBatch();
+            }
+        }
+        LOGGER.info("Cross-validation ARFF files preparation complete.");
+    }
+
+    private void runCrossValidationFromArffs(int numRuns, int numFolds) throws Exception {
+        LOGGER.info("Starting PARALLELIZED classification from ARFF files...");
+        String acumeOutputDir = String.format("acumeFiles/%s/input/crossValidation/", this.project.toLowerCase());
         new File(acumeOutputDir).mkdirs();
 
         List<WekaClassifier> classifierConfigurations = ClassifierBuilder.buildClassifiers(this.fullDataset);
@@ -120,33 +242,26 @@ public class WekaAnalysis {
                 LOGGER.log(Level.INFO, "==========================================================");
 
                 for (int run = 1; run <= numRuns; run++) {
-                    LOGGER.log(Level.INFO, "--- Starting Run {0}/{1} for config {2} ---", new Object[]{run, numRuns, config.getDescriptiveName()});
-
                     List<PredictionResult> aggregatedPredictionsForRun = new ArrayList<>();
                     List<Evaluation> evaluationsForRun = new ArrayList<>();
 
-                    Random rand = new Random(run);
-                    Instances randData = new Instances(this.fullDataset);
-                    randData.randomize(rand);
-                    if (randData.classAttribute().isNominal()) {
-                        randData.stratify(numFolds);
-                    }
-
                     for (int fold = 0; fold < numFolds; fold++) {
-                        LOGGER.log(Level.FINE, "Processing fold {0}/{1} for {2}...", new Object[]{fold + 1, numFolds, config.getDescriptiveName()});
+                        String dirPath = String.format("arffFiles/%s/crossValidation/run_%d/fold_%d/", project.toLowerCase(), run, fold);
 
-                        Instances trainingSet = randData.trainCV(numFolds, fold, rand);
-                        Instances testingSet = randData.testCV(numFolds, fold);
+                        DataSource trainingSource = new DataSource(dirPath + "Training.arff");
+                        Instances trainingSet = trainingSource.getDataSet();
+                        trainingSet.setClassIndex(trainingSet.numAttributes() - 1);
+
+                        DataSource testingSource = new DataSource(dirPath + "Testing.arff");
+                        Instances testingSet = testingSource.getDataSet();
+                        testingSet.setClassIndex(testingSet.numAttributes() - 1);
+
                         if (testingSet.isEmpty()) continue;
 
-                        // Usiamo il builder per creare un'istanza nuova e pulita.
-                        // Questo garantisce la thread-safety indipendentemente dalla versione di Weka.
                         WekaClassifier freshWekaClassifier = ClassifierBuilder.buildSpecificClassifier(
                                 config.getName(), config.getSampling(), config.getFeatureSelection(), config.getCostSensitive(), trainingSet
                         );
                         Classifier classifierInstance = freshWekaClassifier.getClassifier();
-
-                        // Ora addestriamo l'istanza appena creata
                         classifierInstance.buildClassifier(trainingSet);
 
                         aggregatedPredictionsForRun.addAll(getPredictionResults(classifierInstance, testingSet));
@@ -156,39 +271,44 @@ public class WekaAnalysis {
                         evaluationsForRun.add(eval);
                     }
 
-                    LOGGER.log(Level.INFO, "--- Finished Run {0} for {1}. Saving results... ---", new Object[]{run, config.getDescriptiveName()});
-
-                    String classifierName = config.getDescriptiveName().replaceAll("\\s+", "");
-                    String acumeOutputFile = String.format("%s%s_%s_run%d.csv",
-                            acumeOutputDir, project.toLowerCase(), classifierName.toLowerCase(), run);
-                    AcumeUtils.exportToAcumeCsv(acumeOutputFile, aggregatedPredictionsForRun);
-
-                    int buggyClassIndex = this.fullDataset.classAttribute().indexOfValue("yes");
-                    double avgPrecision = evaluationsForRun.stream().mapToDouble(e -> e.precision(buggyClassIndex)).average().orElse(Double.NaN);
-                    double avgRecall = evaluationsForRun.stream().mapToDouble(e -> e.recall(buggyClassIndex)).average().orElse(Double.NaN);
-                    double avgAuc = evaluationsForRun.stream().mapToDouble(e -> e.areaUnderROC(buggyClassIndex)).average().orElse(Double.NaN);
-                    double avgKappa = evaluationsForRun.stream().mapToDouble(Evaluation::kappa).average().orElse(Double.NaN);
-                    double avgF1 = evaluationsForRun.stream().mapToDouble(e -> e.fMeasure(buggyClassIndex)).average().orElse(Double.NaN);
-
-                    EvaluationResult result = new EvaluationResult(
-                            project, run, config.getName(),
-                            config.getFeatureSelection(), config.getSampling(), config.getCostSensitive(),
-                            avgPrecision, avgRecall, avgAuc, avgKappa, avgF1
-                    );
-
-                    synchronized (this.crossValResults) {
-                        this.crossValResults.add(result);
-                    }
+                    // Salva i risultati alla fine di ogni run
+                    saveRunResults(run, config, aggregatedPredictionsForRun, evaluationsForRun, acumeOutputDir);
                 }
             } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "An error occurred while processing classifier config " + config.getDescriptiveName(), e);
+                LOGGER.log(Level.SEVERE, "Error processing classifier " + config.getDescriptiveName(), e);
             }
         });
 
         LOGGER.info("Finished all parallel tasks. Weka results and ACUME input files are generated.");
     }
 
-    // --- CORE CLASSIFICATION LOGIC ---
+    // Metodo helper per salvare i risultati di una run
+    private void saveRunResults(int run, WekaClassifier config, List<PredictionResult> predictions, List<Evaluation> evaluations, String acumeOutputDir) throws IOException {
+        String classifierName = config.getDescriptiveName().replaceAll("\\s+", "");
+        String acumeOutputFile = String.format("%s%s_%s_run%d.csv",
+                acumeOutputDir, project.toLowerCase(), classifierName.toLowerCase(), run);
+        AcumeUtils.exportToAcumeCsv(acumeOutputFile, predictions);
+
+        int buggyClassIndex = this.fullDataset.classAttribute().indexOfValue("yes");
+        double avgPrecision = evaluations.stream().mapToDouble(e -> e.precision(buggyClassIndex)).average().orElse(Double.NaN);
+        double avgRecall = evaluations.stream().mapToDouble(e -> e.recall(buggyClassIndex)).average().orElse(Double.NaN);
+        double avgAuc = evaluations.stream().mapToDouble(e -> e.areaUnderROC(buggyClassIndex)).average().orElse(Double.NaN);
+        double avgKappa = evaluations.stream().mapToDouble(Evaluation::kappa).average().orElse(Double.NaN);
+        double avgF1 = evaluations.stream().mapToDouble(e -> e.fMeasure(buggyClassIndex)).average().orElse(Double.NaN);
+
+        EvaluationResult result = new EvaluationResult(
+                project, run, config.getName(),
+                config.getFeatureSelection(), config.getSampling(), config.getCostSensitive(),
+                avgPrecision, avgRecall, avgAuc, avgKappa, avgF1
+        );
+
+        synchronized (this.crossValResults) {
+            this.crossValResults.add(result);
+        }
+    }
+
+
+    // --- METODI HELPER E LOGICA COMUNE (invariati) ---
 
     private void performSingleClassification(Instances trainingSet, Instances testingSet, List<EvaluationResult> resultsList, String acumeDir, String fileSuffix, int iterationId) throws Exception {
         List<WekaClassifier> classifiersToTest = ClassifierBuilder.buildClassifiers(trainingSet);
@@ -198,7 +318,7 @@ public class WekaAnalysis {
             wekaClf.getClassifier().buildClassifier(trainingSet);
             List<PredictionResult> predictionResults = getPredictionResults(wekaClf.getClassifier(), testingSet);
 
-            String descriptiveFileName = wekaClf.getDescriptiveName() + "_" + fileSuffix + ".csv";
+            String descriptiveFileName = wekaClf.getDescriptiveName().replaceAll("\\s+", "") + "_" + fileSuffix + ".csv";
             String acumeOutputFile = acumeDir + project.toLowerCase() + "_" + descriptiveFileName;
             AcumeUtils.exportToAcumeCsv(acumeOutputFile, predictionResults);
 
@@ -214,9 +334,6 @@ public class WekaAnalysis {
             resultsList.add(result);
         }
     }
-
-
-    // --- HELPER METHODS ---
 
     private List<PredictionResult> getPredictionResults(Classifier clf, Instances data) throws Exception {
         List<PredictionResult> results = new ArrayList<>();
@@ -245,7 +362,6 @@ public class WekaAnalysis {
         }
         return filteredData;
     }
-
 
     private void saveResults(String type, List<EvaluationResult> evaluationResults) throws IOException {
         LOGGER.info("Saving Weka evaluation results...");
