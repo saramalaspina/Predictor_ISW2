@@ -10,12 +10,12 @@ public class Ticket {
 
     private String id;
     private LocalDate creationDate;
-    private LocalDate resolutionDate;
+    private final LocalDate resolutionDate;
     private Release iv;
-    private Release ov;
-    private Release fv;
-    private List<Release> av;
-    private List<RevCommit> commitList;
+    private final Release ov;
+    private final Release fv;
+    private final List<Release> av;
+    private final List<RevCommit> commitList;
 
     public Ticket(String id, LocalDate creationDate, LocalDate resolutionDate, Release iv, Release ov, Release fv, List<Release> av) {
         this.id = id;
@@ -48,10 +48,6 @@ public class Ticket {
         return resolutionDate;
     }
 
-    public void setResolutionDate(LocalDate resolutionDate) {
-        this.resolutionDate = resolutionDate;
-    }
-
     public Release getIv() {
         return iv;
     }
@@ -64,24 +60,12 @@ public class Ticket {
         return ov;
     }
 
-    public void setOv(Release ov) {
-        this.ov = ov;
-    }
-
     public Release getFv() {
         return fv;
     }
 
-    public void setFv(Release fv) {
-        this.fv = fv;
-    }
-
     public List<Release> getAv() {
         return av;
-    }
-
-    public void setAv(List<Release> av) {
-        this.av = av;
     }
 
     public void addAv(Release av) {

@@ -115,10 +115,8 @@ public class ClassifierBuilder {
         // Create the search method
         BestFirst search = new BestFirst();
 
-        // Configure the search method using command-line options
-        // -D 1 specifies a forward search.
         try {
-            search.setOptions(Utils.splitOptions("-D 0"));
+            search.setOptions(Utils.splitOptions("-D 0"));  // -D 0 specifies a backward search.
         } catch (Exception e) {
             Logger.getLogger(ClassifierBuilder.class.getName()).log(Level.SEVERE, "Failed to set BestFirst options", e);
         }
@@ -169,8 +167,7 @@ public class ClassifierBuilder {
         return matrix;
     }
 
-    // Costruisce e restituisce una singola, specifica configurazione di classificatore.
-
+    // Build and return a specific classifier configuration
     public static WekaClassifier buildSpecificClassifier(String name, String sampling, String fs, String cs, Instances data) {
         Classifier baseClassifier;
         switch (name) {
@@ -189,7 +186,6 @@ public class ClassifierBuilder {
 
         Classifier finalClassifier = baseClassifier;
 
-        // Applica i filtri se richiesti (come SMOTE o Feature Selection)
         if (!"None".equalsIgnoreCase(sampling) || !"None".equalsIgnoreCase(fs)) {
             FilteredClassifier fc = new FilteredClassifier();
             fc.setClassifier(baseClassifier);
@@ -198,17 +194,14 @@ public class ClassifierBuilder {
                 fc.setFilter(createSmoteFilter(data));
             }
             if ("BestFirst".equalsIgnoreCase(fs)) {
-                // Se hai già un filtro FS, potresti volerlo combinare con SMOTE
-                // Per ora, assumiamo che non vengano usati insieme o che tu lo gestisca.
                 fc.setFilter(createFeatureSelectionFilter());
             }
             finalClassifier = fc;
         }
 
-        // Applica il wrapper Cost-Sensitive se richiesto
         if ("SensitiveLearning".equalsIgnoreCase(cs)) {
             CostSensitiveClassifier csc = new CostSensitiveClassifier();
-            csc.setClassifier(finalClassifier); // Usa il classificatore già filtrato se necessario
+            csc.setClassifier(finalClassifier);
             csc.setCostMatrix(createCostMatrix());
             csc.setMinimizeExpectedCost(false);
             finalClassifier = csc;

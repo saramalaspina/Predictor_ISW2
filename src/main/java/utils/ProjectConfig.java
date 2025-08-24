@@ -1,31 +1,30 @@
 package utils;
 
 public enum ProjectConfig {
-    // Definizione delle configurazioni per ogni progetto
     OPENJPA(
             "OPENJPA",
-            "convert", // AFMethod
-            "NestingDepth", //AFeature
-            "RandomForest", // BEST_CLF_NAME
-            "None",         // BEST_SAMPLING
-            "None",         // BEST_FS (Feature Selection)
-            "None",         // BEST_CS (Cost Sensitive)
-            1,             // N_RUNS per Cross-Validation
-            2          // N_Folds per Cross-Validation
+            "convert",  // AFMethod
+            "NestingDepth",      //AFeature
+            "RandomForest",     // BEST_CLF_NAME
+            "None",            // BEST_SAMPLING
+            "None",           // BEST_FS (Feature Selection)
+            "None",          // BEST_CS (Cost Sensitive)
+            1,              // N_RUNS per Cross-Validation
+            2              // N_Folds per Cross-Validation
     ),
     BOOKKEEPER(
             "BOOKKEEPER",
-            "main", // AFMethod
-            "LOC", //AFeature
-            "RandomForest",   // BEST_CLF_NAME
-            "None",        // BEST_SAMPLING
-            "None",    // BEST_FS
-            "None",     // BEST_CS
-            10,         // N_RUNS per Cross-Validation
+            "main",  // AFMethod
+            "LOC",            //AFeature
+            "RandomForest",  // BEST_CLF_NAME
+            "None",         // BEST_SAMPLING
+            "None",        // BEST_FS
+            "None",       // BEST_CS
+            10,          // N_RUNS per Cross-Validation
             10          // N_Folds per Cross-Validation
     );
 
-    // Campi per memorizzare i valori delle costanti
+
     private final String projectName;
     private final String AFMethod;
     private final String AFeature;
@@ -36,7 +35,6 @@ public enum ProjectConfig {
     private final int crossValidationRuns;
     private final int crossValidationFolds;
 
-    // Costruttore privato per inizializzare i campi
     ProjectConfig(String projectName, String AFMethod, String AFeature, String bestClfName, String bestSampling, String bestFs, String bestCs, int cvRuns, int cvFolds) {
         this.projectName = projectName;
         this.AFMethod = AFMethod;
@@ -85,7 +83,7 @@ public enum ProjectConfig {
         return AFMethod;
     }
 
-    //Metodo factory per ottenere la configurazione dal nome del progetto
+    // Factory method to obtain the right configuration from the project name
     public static ProjectConfig fromString(String projectName) {
         for (ProjectConfig config : ProjectConfig.values()) {
             if (config.projectName.equalsIgnoreCase(projectName)) {

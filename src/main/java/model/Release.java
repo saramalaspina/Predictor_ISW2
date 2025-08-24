@@ -10,9 +10,9 @@ public class Release {
 
     private int id;
     private String name;
-    private LocalDate date;
-    private List<RevCommit> commitList;
-    private List <JavaMethod> methodList;     //list of all methods related to that version
+    private final LocalDate date;
+    private final List<RevCommit> commitList;
+    private final List <JavaMethod> methodList;     //list of all methods related to that version
 
     public Release(String name, LocalDate date) {
         this.name = name;
@@ -41,17 +41,6 @@ public class Release {
         return date;
     }
 
-    public void setDate(LocalDate date) {
-        this.date = date;
-    }
-
-    public List<JavaMethod> getMethodList() {
-        return methodList;
-    }
-
-    public void setMethodList(List<JavaMethod> methods) {
-        this.methodList = methods;
-    }
 
     public void addMethod(JavaMethod method){
         this.methodList.add(method);

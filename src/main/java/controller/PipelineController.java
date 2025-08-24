@@ -22,7 +22,7 @@ public class PipelineController {
     }
 
     /**
-     * Esegue la Fase 1: Estrazione dei dati e creazione del Dataset.csv
+     * Execute Phase 1: Data extraction and dataset creation (Milestone 1)
      */
     public void executeDataExtraction() throws Exception {
         System.out.println("\n[PHASE 1] Extracting data from JIRA and Git...");
@@ -42,7 +42,6 @@ public class PipelineController {
         System.out.println(project+": commits extracted and added to release list.");
 
         List<RevCommit> filteredCommitList = gitExtractor.filterCommitsAndSetToTicket();
-        ticketList = gitExtractor.getTicketList();
         PrintUtils.printCommits(project, filteredCommitList, "FilteredCommits.csv");
         PrintUtils.printReleases(project, fullReleaseList, "AllReleases.csv");
         PrintUtils.printReleases(project, releaseList, "AnalysisReleases.csv");
@@ -63,18 +62,18 @@ public class PipelineController {
     }
 
     /**
-     * Esegue la Fase 2: Analisi dei classificatori con Weka e generazione file per ACUME.
+     * Execute Phase 2: Classifier analysis with Weka and creation of ACUME files
      */
     public void executeClassifierAnalysis() throws Exception {
         System.out.println("\n[PHASE 2] Starting WEKA Machine Learning pipeline...");
         WekaAnalysis wekaAnalysis = new WekaAnalysis(project);
         wekaAnalysis.executeWalkForward();
-        //wekaAnalysis.executeCrossValidation(config.getCrossValidationRuns(), config.getCrossValidationFolds());
+        wekaAnalysis.executeCrossValidation(config.getCrossValidationRuns(), config.getCrossValidationFolds());
         System.out.println("[PHASE 2] WEKA Machine Learning pipeline complete.\n");
     }
 
     /**
-     * Esegue la Fase 3: Calcolo della correlazione
+     * Execute Phase 3: Calculation of Spearman Correlation
      */
     public void executeCorrelationAnalysis() throws Exception {
         System.out.println("\n[PHASE 3] Starting Correlation Analysis...");
@@ -83,44 +82,40 @@ public class PipelineController {
     }
 
     /**
-     * Esegue la Fase 4: Refactoring
+     * Execute Phase 4: Refactoring Analysis
      */
-    public void executeRefactoringAnalysis() throws Exception {
+    public void executeRefactoringAnalysis() {
         System.out.println("\n[PHASE 4] Starting Refactoring Analysis...");
         RefactoringAnalysis.execute(project, config.getAFMethod(), config.getAFeature());
         System.out.println("[PHASE 4] Refactoring analysis complete.\n");
     }
 
     /**
-     * Esegue la Fase 5: What IF
+     * Execute Phase 5: What IF Analysis
      */
     public void executeWhatIfAnalysis() throws Exception {
         System.out.println("\n[PHASE 5] Starting What-If Analysis...");
 
-        // --- CONFIGURAZIONE DEL MIGLIOR CLASSIFICATORE (BClassifier) ---
+        // BClassifier
         final String bestClassifierName = config.getBestClassifierName();
         final String bestSampling = config.getBestSampling();
         final String bestFeatureSelection = config.getBestFeatureSelection();
         final String bestCostSensitive = config.getBestCostSensitive();
 
-        // Carica il dataset necessario
         WekaAnalysis tempWeka = new WekaAnalysis(project);
         Instances fullDataset = tempWeka.getFullDataset();
 
         System.out.printf("Using BClassifier configuration: %s, Sampling=%s, FS=%s, CS=%s%n",
                 bestClassifierName, bestSampling, bestFeatureSelection, bestCostSensitive);
 
-        // Costruisci il BClassifier usando le costanti
         WekaClassifier bClassifier = ClassifierBuilder.buildSpecificClassifier(
                 bestClassifierName, bestSampling, bestFeatureSelection, bestCostSensitive, fullDataset
         );
 
-        // Istanzia ed esegui l'analisi
         WhatIfAnalysis whatIf = new WhatIfAnalysis(fullDataset, bClassifier, project);
         whatIf.execute();
 
         System.out.println("[PHASE 5] What-If Analysis complete. Results saved to whatIf.csv.\n");
     }
-
 
 }

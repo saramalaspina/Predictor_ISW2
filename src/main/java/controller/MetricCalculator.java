@@ -11,6 +11,7 @@ import org.eclipse.jgit.revwalk.RevCommit;
 
 import java.util.*;
 
+// Calculate features to create dataset
 public class MetricCalculator {
 
     private MetricCalculator() {}
@@ -144,7 +145,7 @@ public class MetricCalculator {
         return smellCount;
     }
 
-    // --- Metodi Helper per gli smells, estratti per chiarezza ---
+    // --- Helper methods for code smells calculation ---
 
     private static long countMagicNumbers(BlockStmt body) {
         return body.findAll(IntegerLiteralExpr.class).stream()

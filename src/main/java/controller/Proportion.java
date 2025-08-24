@@ -15,7 +15,7 @@ import static java.lang.Math.max;
 
 public class Proportion {
 
-    private List<Float> proportionList;
+    private final List<Float> proportionList;
 
     private float totalProportion;
 

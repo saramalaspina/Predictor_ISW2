@@ -59,9 +59,7 @@ public class GitUtils {
         if (content == null || content.isEmpty()) return methods;
         try {
             CompilationUnit cu = StaticJavaParser.parse(content);
-            cu.findAll(MethodDeclaration.class).forEach(md -> {
-                methods.put(JavaMethod.getSignature(md), md);
-            });
+            cu.findAll(MethodDeclaration.class).forEach(md -> methods.put(JavaMethod.getSignature(md), md));
         } catch (ParseProblemException | StackOverflowError ignored) {
         }
         return methods;
@@ -116,14 +114,13 @@ public class GitUtils {
     }
 
     public static String normalizeMethodBody(MethodDeclaration md) {
-        if (md == null || !md.getBody().isPresent()) {
+        if (md == null || md.getBody().isEmpty()) {
             return "";
         }
-        // Rimuovi commenti, spazi bianchi eccessivi, ecc.
-        // Questo è un esempio MOLTO SEMPLICE. Una normalizzazione robusta è complessa.
+
         String body = md.getBody().get().toString();
-        body = body.replaceAll("//.*|/\\*(?s:.*?)\\*/", ""); // Rimuovi commenti
-        body = body.replaceAll("\\s+", " "); // Sostituisci spazi multipli con uno singolo
+        body = body.replaceAll("//.*|/\\*(?s:.*?)\\*/", ""); // Remove comments
+        body = body.replaceAll("\\s+", " "); // Replace multiple blank space with a single one
         return body.trim();
     }
 

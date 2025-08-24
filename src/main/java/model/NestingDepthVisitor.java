@@ -55,25 +55,25 @@ public class NestingDepthVisitor extends VoidVisitorAdapter<Void> {
 
     @Override
     public void visit(SwitchStmt n, Void arg) {
-        enterControlStructure(); // Lo switch stesso è un livello
+        enterControlStructure();
         super.visit(n, arg);
         exitControlStructure();
     }
 
     @Override
     public void visit(TryStmt n, Void arg) {
-        enterControlStructure(); // Il blocco try è un livello
-        n.getTryBlock().accept(this, arg); // Visita il corpo del try
+        enterControlStructure();
+        n.getTryBlock().accept(this, arg);
         for (CatchClause c : n.getCatchClauses()) {
-            c.accept(this, arg); // Visita ogni catch (enter/exit gestito nel visitor del catch se necessario)
+            c.accept(this, arg);
         }
-        n.getFinallyBlock().ifPresent(f -> f.accept(this, arg)); // Visita il finally
-        exitControlStructure(); // Esce dal livello del try
+        n.getFinallyBlock().ifPresent(f -> f.accept(this, arg));
+        exitControlStructure();
     }
 
     @Override
     public void visit(CatchClause n, Void arg) {
-        enterControlStructure(); // Il catch è un suo blocco di controllo
+        enterControlStructure();
         super.visit(n, arg);
         exitControlStructure();
     }

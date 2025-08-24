@@ -24,7 +24,6 @@ public class PrintUtils {
     private static final Logger LOGGER = Logger.getLogger(PrintUtils.class.getName());
     private static final String DELIMITER = "\n";
 
-    // Define base directories for different types of output
     private static final String REPORT_DIR = "reportFiles/";
     private static final String WEKA_RESULTS_DIR = "wekaResults/";
     private static final String SLASH = "/";
@@ -198,10 +197,6 @@ public class PrintUtils {
         }
     }
 
-    /**
-     * Calcola e scrive le metriche per un singolo MethodDeclaration.
-     * UTILIZZA I TUOI METODI DI CALCOLO.
-     */
     public static void printMetricsForMethod(MethodDeclaration md, String versionTag, PrintWriter writer) {
         int loc = MetricCalculator.calculateLOC(md);
         int numParams = md.getParameters().size();
@@ -212,10 +207,6 @@ public class PrintUtils {
         writer.printf("%s,%s,%d,%d,%d,%d,%d%n", md.getNameAsString(), versionTag, loc, numParams, numBranches, nestingDepth, numSmells);
     }
 
-    /**
-     * Calcola e scrive le metriche per un singolo ConstructorDeclaration.
-     * UTILIZZA I TUOI METODI DI CALCOLO.
-     */
     public static void printMetricsForConstructor(ConstructorDeclaration cd, String versionTag, PrintWriter writer) {
         MethodDeclaration fakeMethod = new MethodDeclaration().setBody(cd.getBody());
         cd.getParameters().forEach(fakeMethod::addParameter);
@@ -229,9 +220,6 @@ public class PrintUtils {
         writer.printf("%s (constructor),%s,%d,%d,%d,%d,%d%n", cd.getNameAsString(), versionTag, loc, numParams, numBranches, nestingDepth, numSmells);
     }
 
-    /**
-     * Calcola e scrive le metriche aggregate per l'intero sistema rifattorizzato.
-     */
     public static void printAggregatedMetrics(MethodDeclaration mainRefactored, List<MethodDeclaration> allMethods, List<ConstructorDeclaration> allConstructors, PrintWriter writer) {
         int totalLoc = 0;
         int totalBranches = 0;

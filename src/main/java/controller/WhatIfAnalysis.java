@@ -23,68 +23,60 @@ public class WhatIfAnalysis {
         this.project = project;
     }
 
-    /**
-     * Esegue l'intera pipeline di analisi What-If.
-     */
+
     public void execute() throws Exception {
         LOGGER.info("--- Starting What-If Analysis ---");
 
-        // --- Creare i dataset B+, C, e B ---
+        // --- Create datasets B+, C, e B ---
         LOGGER.info("Creating sub-datasets based on NSmells...");
 
-        // --- B+: Porzione di A con NSmells > 0
-        Instances datasetBPlus = filterBySmell(this.datasetA, 0, "greater");
+        // --- B+: Portion of A with NSmells > 0
+        Instances datasetBPlus = filterBySmell(this.datasetA, "greater");
 
-        // --- C: Porzione di A con NSmells = 0
-        Instances datasetC = filterBySmell(this.datasetA, 0, "equals");
+        // --- C: Portion of A with NSmells = 0
+        Instances datasetC = filterBySmell(this.datasetA, "equals");
 
-        // --- B: Una copia di B+ ma con NSmells manipolato a 0
+        // --- B: Like B+ but with NSmells brought to  0
         Instances datasetB = new Instances(datasetBPlus);
         int nSmellsIndex = datasetB.attribute("NSmells").index();
         if (nSmellsIndex == -1) throw new IllegalStateException("Feature 'NSmells' not found.");
         datasetB.forEach(instance -> instance.setValue(nSmellsIndex, 0));
 
-        // --- Addestrare BClassifier su A (BClassifierA) ---
+        // --- Train BClassifier on A (BClassifierA) ---
         LOGGER.info("Training BClassifier on the full dataset A...");
         Classifier bClassifierA = this.bClassifierInfo.getClassifier();
         bClassifierA.buildClassifier(this.datasetA);
 
-        // --- Predire e contare Actual/Estimated su A, B, B+, C ---
+        // --- Predict and count Actual/Estimated on A, B, B+, C ---
         LOGGER.info("Counting actual and estimated bugs on all datasets...");
 
-        // Calcola i valori "Actual"
+        // Count "Actual" values
         int actualA = countActualBugs(this.datasetA);
         int actualBPlus = countActualBugs(datasetBPlus);
         int actualC = countActualBugs(datasetC);
-        // Nota: B e B+ hanno gli stessi metodi, quindi gli Actual sono identici.
-        int actualB = actualBPlus;
 
-        // Calcola i valori "Estimated"
+        // Count "Estimated" values
         int estimatedA = countBuggyPredictions(bClassifierA, this.datasetA);
         int estimatedBPlus = countBuggyPredictions(bClassifierA, datasetBPlus);
         int estimatedC = countBuggyPredictions(bClassifierA, datasetC);
         int estimatedB = countBuggyPredictions(bClassifierA, datasetB);
 
-        // --- Passo 13: Salva i risultati in un file CSV ---
         String outputDir = String.format("whatIfResults/%s/", this.project.toLowerCase());
         String outputFile = outputDir + "whatIf.csv";
         PrintUtils.printWhatIfResultsToCsv(outputFile,
                 actualA, estimatedA,
                 actualBPlus, estimatedBPlus,
-                actualB, estimatedB,
+                actualBPlus, estimatedB,
                 actualC, estimatedC);
-
 
         saveDatasetToCsv(datasetB, outputDir, "DatasetB.csv");
         saveDatasetToCsv(datasetBPlus, outputDir, "DatasetBplus.csv");
         saveDatasetToCsv(datasetC, outputDir, "DatasetC.csv");
 
-
     }
 
 
-    // Filtra un dataset basato sul valore della feature "NSmells"
-    private Instances filterBySmell(Instances data, double value, String comparison) {
+    private Instances filterBySmell(Instances data, String comparison) {
         int attrIndex = data.attribute("NSmells").index();
         if (attrIndex == -1) {
             throw new IllegalArgumentException("Attribute not found: " + "NSmells");
@@ -99,13 +91,13 @@ public class WhatIfAnalysis {
 
             switch (comparison) {
                 case "equals":
-                    if (currentValue == value) conditionMet = true;
+                    if (currentValue == (double) 0) conditionMet = true;
                     break;
                 case "greater":
-                    if (currentValue > value) conditionMet = true;
+                    if (currentValue > (double) 0) conditionMet = true;
                     break;
                 case "less":
-                    if (currentValue < value) conditionMet = true;
+                    if (currentValue < (double) 0) conditionMet = true;
                     break;
                 default:
                     throw new IllegalArgumentException("Comparison type not supported: " + comparison);
@@ -119,7 +111,6 @@ public class WhatIfAnalysis {
     }
 
 
-     // Conta le istanze predette come "buggy" in un dataset.
     private int countBuggyPredictions(Classifier classifier, Instances data) throws Exception {
         if (data.isEmpty()) return 0;
         int buggyCount = 0;
@@ -132,7 +123,6 @@ public class WhatIfAnalysis {
         return buggyCount;
     }
 
-    // Conta le istanze che sono effettivamente "buggy" in un dataset.
     private int countActualBugs(Instances data) {
         if (data.isEmpty()) return 0;
         int actualBuggyCount = 0;

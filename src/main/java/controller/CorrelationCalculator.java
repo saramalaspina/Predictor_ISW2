@@ -13,13 +13,14 @@ import java.nio.file.Paths;
 import java.util.*;
 import java.util.logging.Logger;
 
+// Calculate Spearman Correlation from dataset
+
 public class CorrelationCalculator {
     private static final Logger LOGGER = Logger.getLogger(CorrelationCalculator.class.getName());
 
     private CorrelationCalculator() {}
 
     public static void calculateAndSave(String projectName) throws IOException {
-        // Allineato alla tua struttura di file
         String inputFilePath = String.format("reportFiles/%s/Dataset.csv", projectName.toLowerCase());
         String outputDir = "reportFiles/" + projectName.toLowerCase() + "/";
         String outputFileName = "Correlation.csv";
@@ -57,7 +58,6 @@ public class CorrelationCalculator {
                 }
             }
 
-            // Assicurati che la colonna "Buggy" esista
             if (!headerMap.containsKey("Buggy")) {
                 LOGGER.severe("Label column 'Buggy' not found in Dataset.csv");
                 return;
@@ -68,7 +68,7 @@ public class CorrelationCalculator {
                     try {
                         featureValues.get(feature).add(Double.parseDouble(record.get(feature)));
                     } catch (NumberFormatException e) {
-                        featureValues.get(feature).add(0.0); // Gestisce valori non numerici
+                        featureValues.get(feature).add(0.0);
                     }
                 }
                 String label = record.get("Buggy").trim().toLowerCase();
@@ -82,7 +82,7 @@ public class CorrelationCalculator {
             for (String feature : numericColumns) {
                 double[] featureArray = featureValues.get(feature).stream().mapToDouble(Double::doubleValue).toArray();
                 double corr = correlation.correlation(featureArray, labelArray);
-                if (Double.isNaN(corr)) corr = 0.0; // Gestisce NaN se c'è varianza zero
+                if (Double.isNaN(corr)) corr = 0.0;
                 correlationResults.add(new String[]{feature, String.format(Locale.US, "%.4f", corr)});
             }
 

@@ -22,7 +22,6 @@ import org.eclipse.jgit.lib.ObjectLoader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
-import org.eclipse.jgit.util.io.DisabledOutputStream;
 import utils.GitUtils;
 
 import java.io.File;
@@ -33,13 +32,13 @@ import static controller.MetricCalculator.*;
 
 
 public class ExtractFromGit {
-    private List<Ticket> ticketList;
+    private final List<Ticket> ticketList;
     private List<Release> releaseList; // first 34% of releases
-    private List<Release> fullReleaseList;
-    private List<RevCommit> commitList;
+    private final List<Release> fullReleaseList;
+    private final List<RevCommit> commitList;
 
-    private Git git;
-    private Repository repository;
+    private final Git git;
+    private final Repository repository;
 
     public ExtractFromGit(String projectName, List<Release> allReleases, List<Ticket> ticketList) throws IOException {
 
@@ -76,10 +75,6 @@ public class ExtractFromGit {
         return fullReleaseList;
     }
 
-    public void setTicketList(List<Ticket> ticketList) {
-        this.ticketList = ticketList;
-    }
-
     public void setReleaseListForAnalysis() {
         if (this.fullReleaseList == null || this.fullReleaseList.isEmpty()) {
             return;
@@ -112,14 +107,14 @@ public class ExtractFromGit {
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
         Iterable<RevCommit> commitsIterable = git.log().all().call();
         commitsIterable.forEach(commitList::add);
-        // sort the commits from the latest to the newest
+        // Sort the commits from the latest to the newest
         commitList.sort(Comparator.comparing(c -> c.getCommitterIdent().getWhen()));
 
         for (RevCommit commit : commitList) {
             LocalDate commitDate = LocalDate.parse(formatter.format(commit.getCommitterIdent().getWhen()));
             LocalDate lowerBoundDate = LocalDate.parse(formatter.format(new Date(0)));
 
-            // assign commits to release
+            // Assign commits to release
             for (Release release : this.fullReleaseList) {
                 LocalDate releaseDate = release.getDate();
                 if (!commitDate.isBefore(lowerBoundDate) && !commitDate.isAfter(releaseDate)) {
@@ -239,7 +234,6 @@ public class ExtractFromGit {
         return allMethodsOfReleases;
     }
 
-
     public void addCommitsToMethods(List<JavaMethod> allMethods, List<RevCommit> commitListInput) throws IOException, GitAPIException {
         List<RevCommit> sortedCommits = new ArrayList<>(commitListInput);
         sortedCommits.sort(Comparator.comparing(RevCommit::getCommitTime));
@@ -296,7 +290,7 @@ public class ExtractFromGit {
             }
         }
 
-        // Calcola NumAuthors dopo che tutti i commit sono stati processati
+        // Calculate number of authors after all the commits are processed
         for (JavaMethod method : allMethods) {
             if (method.getCommits() != null && !method.getCommits().isEmpty()) {
                 Set<String> authors = method.getCommits().stream()
@@ -309,9 +303,6 @@ public class ExtractFromGit {
             }
         }
     }
-
-
-
 
     private void updateMethodMetricsForCommit(List<JavaMethod> allProjectMethods, String filePath,
                                               MethodDeclaration currentMdAst_in_commit, RevCommit commit,
@@ -358,8 +349,6 @@ public class ExtractFromGit {
     }
 
 
-
-
     public void setMethodBuggyness(List<JavaMethod> allProjectMethods) {
         if (this.ticketList == null) {
             System.err.println("Ticket list non inizializzata.");
@@ -367,16 +356,16 @@ public class ExtractFromGit {
         }
 
         for (JavaMethod projectMethod : allProjectMethods) {
-            projectMethod.setBuggy(false); // Reset iniziale
+            projectMethod.setBuggy(false);
         }
 
         for (Ticket ticket : this.ticketList) {
             Release injectedVersion = ticket.getIv();
-            if (injectedVersion == null) continue; // IV non definito per questo ticket
+            if (injectedVersion == null) continue; // IV not defined for this ticket
 
             for (RevCommit fixCommit : ticket.getCommitList()) {
                 Release fixedVersion = GitUtils.getReleaseOfCommit(fixCommit, this.fullReleaseList);
-                if (fixedVersion == null) continue; // Commit di fix non appartiene a una release tracciata
+                if (fixedVersion == null) continue; // Commit of fix does not belong to a tracked release
 
                 try {
                     if (fixCommit.getParentCount() == 0) continue;
@@ -392,7 +381,6 @@ public class ExtractFromGit {
                         String newContent = newFileContentsInFix.getOrDefault(filePath, "");
                         Map<String, MethodDeclaration> newMethodsInFix = GitUtils.parseMethods(newContent);
 
-                        // Per determinare quali metodi sono stati *effettivamente* modificati dal fix
                         String oldContentInFix = GitUtils.getFileContents(parentOfFix, Collections.singletonList(diff), true, repository).getOrDefault(diff.getOldPath(), "");
                         Map<String, MethodDeclaration> oldMethodsInFix = GitUtils.parseMethods(oldContentInFix);
 
@@ -426,11 +414,11 @@ public class ExtractFromGit {
     private void labelBuggyMethods(String fixedMethodFQN, Release injectedVersion, Release fixedVersion, RevCommit fixCommit, List<JavaMethod> allProjectMethods) {
         for (JavaMethod projectMethod : allProjectMethods) {
             if (projectMethod.getFullyQualifiedName().equals(fixedMethodFQN)) {
-                // Aggiungi il commit di fix se il metodo appartiene alla FV e il commit lo ha toccato
+                // Add the fix commit if the method belongs to the FV and the commit has touched it
                 if (projectMethod.getRelease().getId() == fixedVersion.getId() && projectMethod.getCommits().contains(fixCommit) ) { // Assumiamo che getCommits contenga tutti i commit che hanno toccato il metodo in quella release
                     projectMethod.addFixCommit(fixCommit);
                 }
-                // Etichetta come buggy se la release del metodo è tra IV (inclusa) e FV (esclusa)
+                // Label as buggy if the method's release is between  IV (included) e FV (excluded)
                 if (projectMethod.getRelease().getId() >= injectedVersion.getId() &&
                         projectMethod.getRelease().getId() < fixedVersion.getId()) {
                     projectMethod.setBuggy(true);
