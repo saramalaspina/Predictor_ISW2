@@ -26,12 +26,16 @@ import utils.GitUtils;
 
 import java.io.File;
 import java.util.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 import static controller.MetricCalculator.*;
 
 
 public class ExtractFromGit {
+    private static final Logger LOGGER = Logger.getLogger(ExtractFromGit.class.getName());
+
     private final List<Ticket> ticketList;
     private List<Release> releaseList; // first 34% of releases
     private final List<Release> fullReleaseList;
@@ -41,12 +45,11 @@ public class ExtractFromGit {
     private final Repository repository;
 
     public ExtractFromGit(String projectName, List<Release> allReleases, List<Ticket> ticketList) throws IOException {
-
         File repoDir = new File("/Users/saramalaspina/Desktop/" + projectName.toLowerCase() + "_isw2");
         File gitDir = new File(repoDir, ".git");
 
         if (!gitDir.exists()) {
-            System.err.println("Error: directory .git not found in" + repoDir.getAbsolutePath());
+            LOGGER.log(Level.SEVERE, "Error: directory .git not found in {0}", repoDir.getAbsolutePath());
         }
 
         try {
@@ -61,10 +64,6 @@ public class ExtractFromGit {
         this.releaseList = new ArrayList<>();
         this.ticketList = ticketList;
         this.commitList = new ArrayList<>();
-    }
-
-    public List<Ticket> getTicketList() {
-        return ticketList;
     }
 
     public List<Release> getReleaseList() {
@@ -96,8 +95,8 @@ public class ExtractFromGit {
     public List<RevCommit> getAllCommitsAndAssignToReleases() throws GitAPIException, IOException {
 
         if (this.ticketList == null) {
-            System.err.println("Ticket list non inizializzata.");
-            return null;
+            LOGGER.log(Level.SEVERE, "Error: Ticket list not initialized");
+            return Collections.emptyList();
         }
 
         if (!commitList.isEmpty()) {
@@ -135,7 +134,7 @@ public class ExtractFromGit {
 
         List<RevCommit> filteredCommits = new ArrayList<>();
         if (commitList.isEmpty()) {
-            System.err.println("Lista commit vuota. Chiamare prima getAllCommitsAndAssignToReleases().");
+            LOGGER.log(Level.SEVERE, "Error: list commit empty. First call getAllCommitsAndAssignToReleases().");
             return filteredCommits;
         }
 
@@ -166,15 +165,13 @@ public class ExtractFromGit {
 
     public List<JavaMethod> getMethodsFromReleases() throws IOException, GitAPIException {
         List<JavaMethod> allMethodsOfReleases = new ArrayList<>();
-        Set<String> processedMethodsForRelease = new HashSet<>(); // Per evitare duplicati FQN per singola release
+        Set<String> processedMethodsForRelease = new HashSet<>();
 
-        for (Release release : this.releaseList) { // Solo release per analisi
+        for (Release release : this.releaseList) {
             processedMethodsForRelease.clear();
             List<RevCommit> releaseCommits = release.getCommitList();
             if (releaseCommits.isEmpty()) continue;
 
-            // Prendi l'ultimo commit della release per avere lo snapshot dei file
-            // Assumendo che i commit in release.getCommitList() siano ordinati per data
             releaseCommits.sort(Comparator.comparing(c -> c.getCommitterIdent().getWhen()));
             RevCommit lastCommitOfRelease = releaseCommits.get(releaseCommits.size() - 1);
 
@@ -305,9 +302,9 @@ public class ExtractFromGit {
     }
 
     private void updateMethodMetricsForCommit(List<JavaMethod> allProjectMethods, String filePath,
-                                              MethodDeclaration currentMdAst_in_commit, RevCommit commit,
-                                              MethodDeclaration oldMdAst_in_parent_commit, MethodDeclaration newMdAst_in_commit) {
-        String signature = JavaMethod.getSignature(currentMdAst_in_commit);
+                                              MethodDeclaration currentMdAstInCommit, RevCommit commit,
+                                              MethodDeclaration oldMdAstInParentCommit, MethodDeclaration newMdAstInCommit) {
+        String signature = JavaMethod.getSignature(currentMdAstInCommit);
         String fqn = filePath + "/" + signature;
         Release releaseOfCommit = GitUtils.getReleaseOfCommit(commit, this.fullReleaseList);
 
@@ -323,10 +320,10 @@ public class ExtractFromGit {
                 int addedInThisCommit = 0;
                 int deletedInThisCommit = 0;
 
-                int locNewInCommit = calculateLOC(newMdAst_in_commit);
+                int locNewInCommit = calculateLOC(newMdAstInCommit);
 
-                if (oldMdAst_in_parent_commit != null) {
-                    int locOldInParentCommit = calculateLOC(oldMdAst_in_parent_commit);
+                if (oldMdAstInParentCommit != null) {
+                    int locOldInParentCommit = calculateLOC(oldMdAstInParentCommit);
 
                     if (locNewInCommit > locOldInParentCommit) {
                         addedInThisCommit = locNewInCommit - locOldInParentCommit;
@@ -361,52 +358,63 @@ public class ExtractFromGit {
 
         for (Ticket ticket : this.ticketList) {
             Release injectedVersion = ticket.getIv();
-            if (injectedVersion == null) continue; // IV not defined for this ticket
-
-            for (RevCommit fixCommit : ticket.getCommitList()) {
-                Release fixedVersion = GitUtils.getReleaseOfCommit(fixCommit, this.fullReleaseList);
-                if (fixedVersion == null) continue; // Commit of fix does not belong to a tracked release
-
-                try {
-                    if (fixCommit.getParentCount() == 0) continue;
-                    RevCommit parentOfFix = fixCommit.getParent(0);
-                    List<DiffEntry> diffs = GitUtils.getDiffEntries(parentOfFix, fixCommit, repository);
-
-                    Map<String, String> newFileContentsInFix = GitUtils.getFileContents(fixCommit, diffs, false, repository);
-
-                    for (DiffEntry diff : diffs) {
-                        String filePath = diff.getNewPath();
-                        if (!filePath.endsWith(".java") || filePath.contains("/test/")) continue;
-
-                        String newContent = newFileContentsInFix.getOrDefault(filePath, "");
-                        Map<String, MethodDeclaration> newMethodsInFix = GitUtils.parseMethods(newContent);
-
-                        String oldContentInFix = GitUtils.getFileContents(parentOfFix, Collections.singletonList(diff), true, repository).getOrDefault(diff.getOldPath(), "");
-                        Map<String, MethodDeclaration> oldMethodsInFix = GitUtils.parseMethods(oldContentInFix);
-
-
-                        for (Map.Entry<String, MethodDeclaration> fixedMethodEntry : newMethodsInFix.entrySet()) {
-                            String signature = fixedMethodEntry.getKey();
-                            MethodDeclaration fixedMd = fixedMethodEntry.getValue();
-                            MethodDeclaration preFixMd = oldMethodsInFix.get(signature);
-
-                            String hashFixed = GitUtils.calculateBodyHash(fixedMd);
-                            String hashPreFix = GitUtils.calculateBodyHash(preFixMd);
-
-                            boolean actuallyChangedByFix = (preFixMd == null && fixedMd != null) ||
-                                    (hashPreFix != null && hashFixed != null && !hashPreFix.equals(hashFixed)) ||
-                                    (hashPreFix == null && hashFixed != null && preFixMd != null) ||
-                                    (hashPreFix != null && hashFixed == null && fixedMd != null);
-
-                            if (actuallyChangedByFix) {
-                                String fqn = filePath + "/" + signature;
-                                labelBuggyMethods(fqn, injectedVersion, fixedVersion, fixCommit, allProjectMethods);
-                            }
-                        }
-                    }
-                } catch (IOException | GitAPIException e) {
-                    System.err.println("Errore durante l'analisi del commit di fix " + fixCommit.getName() + ": " + e.getMessage());
+            if (injectedVersion != null) {
+                for (RevCommit fixCommit : ticket.getCommitList()) {
+                    processFixCommit(fixCommit, injectedVersion, allProjectMethods);
                 }
+            }
+        }
+    }
+
+
+    private void processFixCommit(RevCommit fixCommit, Release injectedVersion, List<JavaMethod> allProjectMethods) {
+        Release fixedVersion = GitUtils.getReleaseOfCommit(fixCommit, this.fullReleaseList);
+        if (fixedVersion == null || fixCommit.getParentCount() == 0) {
+            return;
+        }
+
+        try {
+            RevCommit parentOfFix = fixCommit.getParent(0);
+            List<DiffEntry> diffs = GitUtils.getDiffEntries(parentOfFix, fixCommit, repository);
+            Map<String, String> newFileContentsInFix = GitUtils.getFileContents(fixCommit, diffs, false, repository);
+
+            for (DiffEntry diff : diffs) {
+                processDiff(diff, parentOfFix, newFileContentsInFix, injectedVersion, fixedVersion, fixCommit, allProjectMethods);
+            }
+        } catch (IOException | GitAPIException e) {
+            System.err.println("Errore durante l'analisi del commit di fix " + fixCommit.getName() + ": " + e.getMessage());
+        }
+    }
+
+
+    private void processDiff(DiffEntry diff, RevCommit parent, Map<String, String> newContents, Release iv, Release fv, RevCommit fc, List<JavaMethod> methods) throws IOException {
+        String filePath = diff.getNewPath();
+        if (!filePath.endsWith(".java") || filePath.contains("/test/")) {
+            return;
+        }
+
+        String newContent = newContents.getOrDefault(filePath, "");
+        Map<String, MethodDeclaration> newMethodsInFix = GitUtils.parseMethods(newContent);
+
+        String oldContentInFix = GitUtils.getFileContents(parent, Collections.singletonList(diff), true, repository).getOrDefault(diff.getOldPath(), "");
+        Map<String, MethodDeclaration> oldMethodsInFix = GitUtils.parseMethods(oldContentInFix);
+
+        for (Map.Entry<String, MethodDeclaration> fixedMethodEntry : newMethodsInFix.entrySet()) {
+            String signature = fixedMethodEntry.getKey();
+            MethodDeclaration fixedMd = fixedMethodEntry.getValue();
+            MethodDeclaration preFixMd = oldMethodsInFix.get(signature);
+
+            String hashFixed = GitUtils.calculateBodyHash(fixedMd);
+            String hashPreFix = GitUtils.calculateBodyHash(preFixMd);
+
+            boolean actuallyChangedByFix = (preFixMd == null && fixedMd != null) ||
+                    (hashPreFix != null && hashFixed != null && !hashPreFix.equals(hashFixed)) ||
+                    (hashPreFix == null && hashFixed != null && preFixMd != null) ||
+                    (hashPreFix != null && hashFixed == null && fixedMd != null);
+
+            if (actuallyChangedByFix) {
+                String fqn = filePath + "/" + signature;
+                labelBuggyMethods(fqn, iv, fv, fc, methods);
             }
         }
     }

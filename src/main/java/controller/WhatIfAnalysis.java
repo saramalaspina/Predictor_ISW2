@@ -8,6 +8,7 @@ import weka.core.Instances;
 import weka.core.converters.CSVSaver;
 
 import java.io.File;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class WhatIfAnalysis {
@@ -91,13 +92,13 @@ public class WhatIfAnalysis {
 
             switch (comparison) {
                 case "equals":
-                    if (currentValue == (double) 0) conditionMet = true;
+                    if (currentValue == 0) conditionMet = true;
                     break;
                 case "greater":
-                    if (currentValue > (double) 0) conditionMet = true;
+                    if (currentValue > 0) conditionMet = true;
                     break;
                 case "less":
-                    if (currentValue < (double) 0) conditionMet = true;
+                    if (currentValue < 0) conditionMet = true;
                     break;
                 default:
                     throw new IllegalArgumentException("Comparison type not supported: " + comparison);
@@ -146,7 +147,7 @@ public class WhatIfAnalysis {
             saver.setInstances(data);
             saver.setFile(new File(directoryPath + fileName));
             saver.writeBatch();
-            LOGGER.info(String.format("Dataset %s saved successfully to %s", fileName, directoryPath));
+            LOGGER.log(Level.INFO, "Dataset {0} saved successfully to {1}", new Object[]{fileName, directoryPath});
         } catch (Exception e) {
             LOGGER.severe(String.format("Failed to save dataset %s. Error: %s", fileName, e.getMessage()));
         }

@@ -5,6 +5,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class StartPredictor {
+    private static final Logger LOGGER = Logger.getLogger(StartPredictor.class.getName());
 
     public static void main(String[] args) {
         Logger.getLogger("").setLevel(Level.INFO);
@@ -64,8 +65,7 @@ public class StartPredictor {
                         break;
                 }
             } catch (Exception e) {
-                System.err.println("\nAn error occurred during the analysis:");
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "An error occurred during the analysis", e);
             }
         }
 

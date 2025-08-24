@@ -13,6 +13,8 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.List;
 import java.util.Optional;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 import static utils.PrintUtils.*;
 
@@ -20,15 +22,17 @@ import static utils.PrintUtils.*;
 // Calculate the metric in the two cases
 public class RefactoringAnalysis {
 
+    private static final Logger LOGGER = Logger.getLogger(RefactoringAnalysis.class.getName());
+
     public static void execute(String projectName, String methodName, String feature) {
         String dir = "refactoringFiles/" + projectName.toLowerCase();
         String originalFile = dir + "/AFMethod.java";
         String refactoredFile = dir + "/AFMethod2.java";
         String outputFile = dir + "/analysis_report_" + feature.toLowerCase() + ".csv";
 
-        System.out.println("===================================================================");
-        System.out.printf("Start Refactoring Analysis for Project: %s, Feature: %s%n", projectName, feature);
-        System.out.println("===================================================================");
+        LOGGER.info("===================================================================");
+        LOGGER.log(Level.INFO, "Start Refactoring Analysis for Project: {0}, Feature: {1}", new Object[]{projectName, feature});
+        LOGGER.info("===================================================================");
 
         try {
             Files.createDirectories(Paths.get(dir));
@@ -44,7 +48,7 @@ public class RefactoringAnalysis {
             Optional<MethodDeclaration> originalMethodOpt = cuOriginal.findFirst(MethodDeclaration.class, md -> md.getNameAsString().equals(methodName));
 
             if (originalMethodOpt.isEmpty()) {
-                System.err.printf("ERRORE: Impossibile trovare il metodo originale '%s' nel file.%n", methodName);
+                LOGGER.log(Level.SEVERE, "ERRORE: Impossibile trovare il metodo originale ''{0}'' nel file.", methodName);
                 return;
             }
 
@@ -79,11 +83,10 @@ public class RefactoringAnalysis {
                 }
             }
 
-            System.out.println("\nEnd Analysis");
+            LOGGER.info("\nEnd Analysis");
 
         } catch (IOException | ParseProblemException e) {
-            System.err.println("ERRORE durante l'analisi. Controlla i file di input e i percorsi.");
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "ERRORE durante l'analisi. Controlla i file di input e i percorsi.", e);
         }
     }
 

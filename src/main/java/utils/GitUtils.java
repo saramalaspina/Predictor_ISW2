@@ -30,6 +30,8 @@ import java.util.Map;
 
 public class GitUtils {
 
+    private GitUtils() {}
+
     public static Release getReleaseOfCommit(RevCommit commit, List<Release> releaseList) {
 
         SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");

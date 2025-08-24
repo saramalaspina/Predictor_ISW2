@@ -9,6 +9,9 @@ import java.util.Locale;
 import model.PredictionResult;
 
 public class AcumeUtils {
+
+    private AcumeUtils() {}
+
     public static void exportToAcumeCsv(String filePath, List<PredictionResult> predictions) throws IOException {
         try (PrintWriter writer = new PrintWriter(new FileWriter(filePath))) {
             writer.println("ID,Size,Predicted,Actual");
