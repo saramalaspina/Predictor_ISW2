@@ -12,7 +12,7 @@ OUTPUT_BASE = Path(__file__).parent / "results"
 DATA_BASE = Path(__file__).parent.parent / "wekaResults"
 
 # Cartella dei dati di Acume
-ACUME_DATA_BASE = Path(__file__).parent.parent / "acumeResults"
+ACUME_DATA_BASE = Path(__file__).parent.parent / "acumeFiles"
 
 
 def create_box_plot(df, metric, title, output_path):
@@ -88,7 +88,7 @@ def process_results(project_name, technique):
     # ---------------------------------------------
 
     # 2. Carica il file CSV di Acume
-    acume_file_path = ACUME_DATA_BASE / project_name / technique / "EAM_NEAM_output.csv"
+    acume_file_path = ACUME_DATA_BASE / project_name / "output" / technique / "EAM_NEAM_output.csv"
     if not acume_file_path.exists():
         print(f"File Acume non trovato: {acume_file_path}. Salto l'aggiunta di Npofb20.")
         df_final = df_weka
@@ -154,7 +154,7 @@ def process_results(project_name, technique):
 
 
 def main():
-    projects = ['bookkeeper']
+    projects = ['openjpa', 'bookkeeper']
     techniques = ['crossValidation', 'walkForward']
 
     for project in projects:
