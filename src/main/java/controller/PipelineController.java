@@ -105,7 +105,11 @@ public class PipelineController {
      */
     public void executeRefactoringAnalysis() {
         LOGGER.log(Level.INFO, "\n[PHASE 4] Starting Refactoring Analysis...");
-        RefactoringAnalysis.execute(project, config.getAFMethod(), config.getAFeature());
+        if (project.equalsIgnoreCase("bookkeeper")){
+            RefactoringAnalysis.execute(project, "main", "LOC");
+        } else {
+            RefactoringAnalysis.execute(project, "convert", "NestingDepth");
+        }
         LOGGER.log(Level.INFO, "[PHASE 4] Refactoring analysis complete.\n");
     }
 

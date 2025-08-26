@@ -3,8 +3,6 @@ package utils;
 public enum ProjectConfig {
     OPENJPA(
             "OPENJPA",
-            "convert",  // AFMethod
-            "NestingDepth",      //AFeature
             "RandomForest",     // BEST_CLF_NAME
             "None",            // BEST_SAMPLING
             "None",           // BEST_FS (Feature Selection)
@@ -14,8 +12,6 @@ public enum ProjectConfig {
     ),
     BOOKKEEPER(
             "BOOKKEEPER",
-            "main",  // AFMethod
-            "LOC",            //AFeature
             "RandomForest",  // BEST_CLF_NAME
             "None",         // BEST_SAMPLING
             "None",        // BEST_FS
@@ -26,8 +22,6 @@ public enum ProjectConfig {
 
 
     private final String projectName;
-    private final String AFMethod;
-    private final String AFeature;
     private final String bestClassifierName;
     private final String bestSampling;
     private final String bestFeatureSelection;
@@ -35,10 +29,8 @@ public enum ProjectConfig {
     private final int crossValidationRuns;
     private final int crossValidationFolds;
 
-    ProjectConfig(String projectName, String AFMethod, String AFeature, String bestClfName, String bestSampling, String bestFs, String bestCs, int cvRuns, int cvFolds) {
+    ProjectConfig(String projectName, String bestClfName, String bestSampling, String bestFs, String bestCs, int cvRuns, int cvFolds) {
         this.projectName = projectName;
-        this.AFMethod = AFMethod;
-        this.AFeature = AFeature;
         this.bestClassifierName = bestClfName;
         this.bestSampling = bestSampling;
         this.bestFeatureSelection = bestFs;
@@ -75,13 +67,6 @@ public enum ProjectConfig {
         return crossValidationFolds;
     }
 
-    public String getAFeature() {
-        return AFeature;
-    }
-
-    public String getAFMethod() {
-        return AFMethod;
-    }
 
     // Factory method to obtain the right configuration from the project name
     public static ProjectConfig fromString(String projectName) {

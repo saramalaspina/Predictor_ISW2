@@ -4,17 +4,7 @@ import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.MethodDeclaration;
-
 import model.*;
-
-import java.io.ByteArrayOutputStream;
-import java.io.IOException;
-import java.text.SimpleDateFormat;
-import java.time.LocalDate;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-
 import org.eclipse.jgit.api.Git;
 import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
@@ -24,7 +14,11 @@ import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import utils.GitUtils;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -32,9 +26,12 @@ import java.util.stream.Collectors;
 
 import static controller.MetricCalculator.*;
 
-
 public class ExtractFromGit {
     private static final Logger LOGGER = Logger.getLogger(ExtractFromGit.class.getName());
+
+    private static final String JAVA_EXTENSION = ".java";
+    private static final String TEST_FOLDER = "/test/";
+    private static final String DATE_FORMAT_PATTERN = "yyyy-MM-dd";
 
     private final List<Ticket> ticketList;
     private List<Release> releaseList; // first 34% of releases
@@ -75,12 +72,12 @@ public class ExtractFromGit {
     }
 
     public void setReleaseListForAnalysis() {
-        if (this.fullReleaseList == null || this.fullReleaseList.isEmpty()) {
+        if (this.fullReleaseList.isEmpty()) {
             return;
         }
-        // Ignore the last 66% releases
+
         int releasesToConsider = (int) Math.ceil(this.fullReleaseList.size() * 0.34);
-        if (releasesToConsider == 0 && !this.fullReleaseList.isEmpty()) {
+        if (releasesToConsider == 0) {
             releasesToConsider = 1;
         }
 
@@ -93,7 +90,6 @@ public class ExtractFromGit {
     }
 
     public List<RevCommit> getAllCommitsAndAssignToReleases() throws GitAPIException, IOException {
-
         if (this.ticketList == null) {
             LOGGER.log(Level.SEVERE, "Error: Ticket list not initialized");
             return Collections.emptyList();
@@ -103,17 +99,23 @@ public class ExtractFromGit {
             return commitList;
         }
 
-        SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
         Iterable<RevCommit> commitsIterable = git.log().all().call();
         commitsIterable.forEach(commitList::add);
-        // Sort the commits from the latest to the newest
         commitList.sort(Comparator.comparing(c -> c.getCommitterIdent().getWhen()));
 
+        assignCommitsToReleases();
+        filterAndRenumberReleases();
+        setReleaseListForAnalysis();
+
+        return commitList;
+    }
+
+    private void assignCommitsToReleases() {
+        SimpleDateFormat formatter = new SimpleDateFormat(DATE_FORMAT_PATTERN);
         for (RevCommit commit : commitList) {
             LocalDate commitDate = LocalDate.parse(formatter.format(commit.getCommitterIdent().getWhen()));
             LocalDate lowerBoundDate = LocalDate.parse(formatter.format(new Date(0)));
 
-            // Assign commits to release
             for (Release release : this.fullReleaseList) {
                 LocalDate releaseDate = release.getDate();
                 if (!commitDate.isBefore(lowerBoundDate) && !commitDate.isAfter(releaseDate)) {
@@ -122,35 +124,21 @@ public class ExtractFromGit {
                 lowerBoundDate = releaseDate;
             }
         }
-
-        filterAndRenumberReleases();
-
-        setReleaseListForAnalysis();
-
-        return commitList;
     }
 
-    public List<RevCommit> filterCommitsAndSetToTicket() {
 
+    public List<RevCommit> filterCommitsAndSetToTicket() {
         List<RevCommit> filteredCommits = new ArrayList<>();
         if (commitList.isEmpty()) {
             LOGGER.log(Level.SEVERE, "Error: list commit empty. First call getAllCommitsAndAssignToReleases().");
             return filteredCommits;
         }
 
+        SimpleDateFormat formatter = new SimpleDateFormat(DATE_FORMAT_PATTERN);
+
         for (RevCommit commit : commitList) {
             for (Ticket ticket : this.ticketList) {
-                String commitMessage = commit.getFullMessage();
-                String ticketID = ticket.getId();
-
-                SimpleDateFormat formatter = new SimpleDateFormat("yyyy-MM-dd");
-                LocalDate commitDate = LocalDate.parse(formatter.format(commit.getCommitterIdent().getWhen()));
-
-                if (ticketID != null && !ticketID.isEmpty() &&
-                        commitMessage.contains(ticketID) &&
-                        ticket.getResolutionDate() != null && !commitDate.isAfter(ticket.getResolutionDate()) &&
-                        ticket.getCreationDate() != null && !commitDate.isBefore(ticket.getCreationDate())) {
-
+                if (isCommitRelatedToTicket(commit, ticket, formatter)) {
                     if (!filteredCommits.contains(commit)) {
                         filteredCommits.add(commit);
                     }
@@ -161,6 +149,17 @@ public class ExtractFromGit {
 
         this.ticketList.removeIf(ticket -> ticket.getCommitList().isEmpty());
         return filteredCommits;
+    }
+
+    private boolean isCommitRelatedToTicket(RevCommit commit, Ticket ticket, SimpleDateFormat formatter) {
+        String commitMessage = commit.getFullMessage();
+        String ticketID = ticket.getId();
+        LocalDate commitDate = LocalDate.parse(formatter.format(commit.getCommitterIdent().getWhen()));
+
+        return ticketID != null && !ticketID.isEmpty() &&
+                commitMessage.contains(ticketID) &&
+                ticket.getResolutionDate() != null && !commitDate.isAfter(ticket.getResolutionDate()) &&
+                ticket.getCreationDate() != null && !commitDate.isBefore(ticket.getCreationDate());
     }
 
     public List<JavaMethod> getMethodsFromReleases() throws IOException, GitAPIException {
@@ -175,61 +174,72 @@ public class ExtractFromGit {
             releaseCommits.sort(Comparator.comparing(c -> c.getCommitterIdent().getWhen()));
             RevCommit lastCommitOfRelease = releaseCommits.get(releaseCommits.size() - 1);
 
-            try (TreeWalk treeWalk = new TreeWalk(repository)) {
-                treeWalk.addTree(lastCommitOfRelease.getTree());
-                treeWalk.setRecursive(true);
-
-                while (treeWalk.next()) {
-                    String filePath = treeWalk.getPathString();
-                    if (filePath.endsWith(".java") && !filePath.contains("/test/")) {
-                        ObjectLoader loader = repository.open(treeWalk.getObjectId(0));
-                        ByteArrayOutputStream output = new ByteArrayOutputStream();
-                        loader.copyTo(output);
-                        String fileContent = output.toString();
-
-                        try {
-                            CompilationUnit cu = StaticJavaParser.parse(fileContent);
-                            cu.findAll(MethodDeclaration.class).forEach(md -> {
-                                String methodSignature = JavaMethod.getSignature(md);
-                                String fqn = filePath + "/" + methodSignature;
-
-                                if (!processedMethodsForRelease.contains(fqn)) {
-                                    JavaMethod currentReleaseMethod = new JavaMethod(fqn, release);
-                                    currentReleaseMethod.setBodyHash(GitUtils.calculateBodyHash(md));
-
-                                    // Calculate Metrics
-                                    int currentLoc = calculateLOC(md);
-                                    currentReleaseMethod.setLoc(currentLoc);
-                                    int numParameters = md.getParameters().size();
-                                    currentReleaseMethod.setNumParameters(numParameters);
-                                    int branches = calculateNumberOfBranches(md);
-                                    currentReleaseMethod.setNumberOfBranches(branches);
-                                    int nestingDepth = calculateNestingDepth(md);
-                                    currentReleaseMethod.setNestingDepth(nestingDepth);
-                                    int smellCount = calculateCodeSmells(md, branches, currentLoc, nestingDepth, numParameters);
-                                    currentReleaseMethod.setNumberOfCodeSmells(smellCount);
-
-                                    allMethodsOfReleases.add(currentReleaseMethod);
-                                    release.addMethod(currentReleaseMethod); // Associa il metodo alla sua release
-                                    currentReleaseMethod.setBodyHash(GitUtils.calculateBodyHash(md));
-                                    processedMethodsForRelease.add(fqn);
-                                }
-                            });
-                        } catch (ParseProblemException | StackOverflowError e) {
-                            System.err.println("Errore di parsing per il file: " + filePath + " nel commit " + lastCommitOfRelease.getName() + ". " + e.getMessage());
-                        }
-                    }
-                }
-            }
+            processFilesInReleaseCommit(lastCommitOfRelease, release, allMethodsOfReleases, processedMethodsForRelease);
         }
 
-        // Associazione commit ai metodi (storico)
         addCommitsToMethods(allMethodsOfReleases, this.commitList);
-
         calculateNFix(allMethodsOfReleases, this.ticketList, this.releaseList);
 
         return allMethodsOfReleases;
     }
+
+    private void processFilesInReleaseCommit(RevCommit commit, Release release,
+                                             List<JavaMethod> allMethodsOfReleases,
+                                             Set<String> processedMethodsForRelease) throws IOException {
+        try (TreeWalk treeWalk = new TreeWalk(repository)) {
+            treeWalk.addTree(commit.getTree());
+            treeWalk.setRecursive(true);
+
+            while (treeWalk.next()) {
+                String filePath = treeWalk.getPathString();
+                if (filePath.endsWith(JAVA_EXTENSION) && !filePath.contains(TEST_FOLDER)) {
+                    processJavaFile(filePath, commit, release, allMethodsOfReleases, processedMethodsForRelease);
+                }
+            }
+        }
+    }
+
+    private void processJavaFile(String filePath, RevCommit commit, Release release,
+                                 List<JavaMethod> allMethodsOfReleases,
+                                 Set<String> processedMethodsForRelease) throws IOException {
+        ObjectLoader loader = repository.open(Objects.requireNonNull(repository.resolve(commit.getName() + ":" + filePath)));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        loader.copyTo(output);
+        String fileContent = output.toString();
+
+        try {
+            CompilationUnit cu = StaticJavaParser.parse(fileContent);
+            cu.findAll(MethodDeclaration.class).forEach(md -> {
+                String methodSignature = JavaMethod.getSignature(md);
+                String fqn = filePath + "/" + methodSignature;
+
+                if (!processedMethodsForRelease.contains(fqn)) {
+                    JavaMethod currentReleaseMethod = createAndConfigureJavaMethod(fqn, release, md);
+                    allMethodsOfReleases.add(currentReleaseMethod);
+                    release.addMethod(currentReleaseMethod);
+                    processedMethodsForRelease.add(fqn);
+                }
+            });
+        } catch (ParseProblemException | StackOverflowError e) {
+            LOGGER.log(Level.SEVERE, "Parsing error for file: {0} in commit {1}. {2}", new Object[]{filePath, commit.getName(), e.getMessage()});
+        }
+    }
+
+    private JavaMethod createAndConfigureJavaMethod(String fqn, Release release, MethodDeclaration md) {
+        JavaMethod method = new JavaMethod(fqn, release);
+        method.setBodyHash(GitUtils.calculateBodyHash(md));
+
+        method.setLoc(calculateLOC(md));
+        method.setNumParameters(md.getParameters().size());
+        int branches = calculateNumberOfBranches(md);
+        method.setNumberOfBranches(branches);
+        int nestingDepth = calculateNestingDepth(md);
+        method.setNestingDepth(nestingDepth);
+        method.setNumberOfCodeSmells(calculateCodeSmells(md, branches, method.getLoc(), nestingDepth, method.getNumParameters()));
+
+        return method;
+    }
+
 
     public void addCommitsToMethods(List<JavaMethod> allMethods, List<RevCommit> commitListInput) throws IOException, GitAPIException {
         List<RevCommit> sortedCommits = new ArrayList<>(commitListInput);
@@ -239,65 +249,65 @@ public class ExtractFromGit {
             if (commit.getParentCount() == 0) {
                 continue;
             }
-
-            RevCommit parent = commit.getParent(0);
-            List<DiffEntry> diffs = GitUtils.getDiffEntries(parent, commit, repository);
-
-            Map<String, String> oldFileContents = GitUtils.getFileContents(parent, diffs, true, repository);
-            Map<String, String> newFileContents = GitUtils.getFileContents(commit, diffs, false, repository);
-
-            for (DiffEntry diff : diffs) {
-                String filePath;
-
-                if (diff.getChangeType() == DiffEntry.ChangeType.DELETE) {
-                    filePath = diff.getOldPath();
-                } else {
-                    filePath = diff.getNewPath();
-                }
-
-                if (!filePath.endsWith(".java") || filePath.contains("/test/")) {
-                    continue;
-                }
-
-                String oldContent = oldFileContents.getOrDefault(diff.getOldPath(), "");
-                String newContent = newFileContents.getOrDefault(diff.getNewPath(), "");
-
-                Map<String, MethodDeclaration> oldMethods = GitUtils.parseMethods(oldContent);
-                Map<String, MethodDeclaration> newMethods = GitUtils.parseMethods(newContent);
-
-                for (Map.Entry<String, MethodDeclaration> newMethodEntry : newMethods.entrySet()) {
-                    String signature = newMethodEntry.getKey();
-                    MethodDeclaration newMd = newMethodEntry.getValue();
-                    MethodDeclaration oldMd = oldMethods.get(signature);
-
-                    String newBodyHash = GitUtils.calculateBodyHash(newMd);
-                    String oldBodyHash = (oldMd != null) ? GitUtils.calculateBodyHash(oldMd) : null;
-
-                    boolean changed;
-                    if (oldMd == null) {
-                        changed = true;
-                    } else {
-                        changed = !Objects.equals(oldBodyHash, newBodyHash);
-                    }
-
-                    if (changed) {
-                        updateMethodMetricsForCommit(allMethods, filePath, newMd, commit, oldMd, newMd);
-                    }
-                }
-            }
+            processCommitForMethodHistory(commit, allMethods);
         }
 
         // Calculate number of authors after all the commits are processed
-        for (JavaMethod method : allMethods) {
-            if (method.getCommits() != null && !method.getCommits().isEmpty()) {
-                Set<String> authors = method.getCommits().stream()
-                        .map(c -> c.getAuthorIdent().getName())
-                        .filter(Objects::nonNull)
-                        .collect(Collectors.toSet());
-                method.setNumAuthors(authors.size());
-            } else {
-                method.setNumAuthors(0);
+        updateNumAuthorsForMethods(allMethods);
+    }
+
+    private void processCommitForMethodHistory(RevCommit commit, List<JavaMethod> allMethods) throws IOException, GitAPIException {
+        RevCommit parent = commit.getParent(0);
+        List<DiffEntry> diffs = GitUtils.getDiffEntries(parent, commit, repository);
+
+        Map<String, String> oldFileContents = GitUtils.getFileContents(parent, diffs, true, repository);
+        Map<String, String> newFileContents = GitUtils.getFileContents(commit, diffs, false, repository);
+
+        for (DiffEntry diff : diffs) {
+            processDiffEntryForMethodHistory(diff, commit, oldFileContents, newFileContents, allMethods);
+        }
+    }
+
+    private void processDiffEntryForMethodHistory(DiffEntry diff, RevCommit commit,
+                                                  Map<String, String> oldFileContents,
+                                                  Map<String, String> newFileContents,
+                                                  List<JavaMethod> allMethods) {
+        String filePath = (diff.getChangeType() == DiffEntry.ChangeType.DELETE) ? diff.getOldPath() : diff.getNewPath();
+
+        if (!filePath.endsWith(JAVA_EXTENSION) || filePath.contains(TEST_FOLDER)) {
+            return;
+        }
+
+        String oldContent = oldFileContents.getOrDefault(diff.getOldPath(), "");
+        String newContent = newFileContents.getOrDefault(diff.getNewPath(), "");
+
+        Map<String, MethodDeclaration> oldMethods = GitUtils.parseMethods(oldContent);
+        Map<String, MethodDeclaration> newMethods = GitUtils.parseMethods(newContent);
+
+        for (Map.Entry<String, MethodDeclaration> newMethodEntry : newMethods.entrySet()) {
+            String signature = newMethodEntry.getKey();
+            MethodDeclaration newMd = newMethodEntry.getValue();
+            MethodDeclaration oldMd = oldMethods.get(signature);
+
+            if (methodBodyChanged(oldMd, newMd)) {
+                updateMethodMetricsForCommit(allMethods, filePath, newMd, commit, oldMd, newMd);
             }
+        }
+    }
+
+    private boolean methodBodyChanged(MethodDeclaration oldMd, MethodDeclaration newMd) {
+        String newBodyHash = GitUtils.calculateBodyHash(newMd);
+        String oldBodyHash = (oldMd != null) ? GitUtils.calculateBodyHash(oldMd) : null;
+        return !Objects.equals(oldBodyHash, newBodyHash);
+    }
+
+    private void updateNumAuthorsForMethods(List<JavaMethod> allMethods) {
+        for (JavaMethod method : allMethods) {
+            Set<String> authors = method.getCommits().stream()
+                    .map(c -> c.getAuthorIdent().getName())
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            method.setNumAuthors(authors.size());
         }
     }
 
@@ -311,50 +321,50 @@ public class ExtractFromGit {
         if (releaseOfCommit == null) return;
 
         for (JavaMethod projectMethod : allProjectMethods) {
-            if (projectMethod.getFullyQualifiedName().equals(fqn) &&
-                    !projectMethod.getRelease().getDate().isBefore(releaseOfCommit.getDate())) { // projectMethod.releaseDate >= commit.releaseDate
-
-                projectMethod.addCommit(commit);
-                projectMethod.incrementNumRevisions();
-
-                int addedInThisCommit = 0;
-                int deletedInThisCommit = 0;
-
-                int locNewInCommit = calculateLOC(newMdAstInCommit);
-
-                if (oldMdAstInParentCommit != null) {
-                    int locOldInParentCommit = calculateLOC(oldMdAstInParentCommit);
-
-                    if (locNewInCommit > locOldInParentCommit) {
-                        addedInThisCommit = locNewInCommit - locOldInParentCommit;
-                    }
-                    if (locOldInParentCommit > locNewInCommit) {
-                        deletedInThisCommit = locOldInParentCommit - locNewInCommit;
-                    }
-                } else {
-                    addedInThisCommit = locNewInCommit;
-                }
-
-                projectMethod.addStmtAdded(addedInThisCommit);
-                projectMethod.addStmtDeleted(deletedInThisCommit);
-
-                int churnForThisCommit = addedInThisCommit + deletedInThisCommit;
-                projectMethod.updateMaxChurn(churnForThisCommit);
-
+            if (isMatchingMethodForUpdate(projectMethod, fqn, releaseOfCommit)) {
+                applyMetricsUpdateToMethod(projectMethod, commit, oldMdAstInParentCommit, newMdAstInCommit);
             }
         }
+    }
+
+    private boolean isMatchingMethodForUpdate(JavaMethod projectMethod, String fqn, Release releaseOfCommit) {
+        return projectMethod.getFullyQualifiedName().equals(fqn) &&
+                !projectMethod.getRelease().getDate().isBefore(releaseOfCommit.getDate());
+    }
+
+    private void applyMetricsUpdateToMethod(JavaMethod projectMethod, RevCommit commit,
+                                            MethodDeclaration oldMdAstInParentCommit, MethodDeclaration newMdAstInCommit) {
+        projectMethod.addCommit(commit);
+        projectMethod.incrementNumRevisions();
+
+        int addedInThisCommit = 0;
+        int deletedInThisCommit = 0;
+
+        int locNewInCommit = calculateLOC(newMdAstInCommit);
+
+        if (oldMdAstInParentCommit != null) {
+            int locOldInParentCommit = calculateLOC(oldMdAstInParentCommit);
+            addedInThisCommit = Math.max(0, locNewInCommit - locOldInParentCommit);
+            deletedInThisCommit = Math.max(0, locOldInParentCommit - locNewInCommit);
+        } else {
+            addedInThisCommit = locNewInCommit;
+        }
+
+        projectMethod.addStmtAdded(addedInThisCommit);
+        projectMethod.addStmtDeleted(deletedInThisCommit);
+
+        int churnForThisCommit = addedInThisCommit + deletedInThisCommit;
+        projectMethod.updateMaxChurn(churnForThisCommit);
     }
 
 
     public void setMethodBuggyness(List<JavaMethod> allProjectMethods) {
         if (this.ticketList == null) {
-            System.err.println("Ticket list non inizializzata.");
+            LOGGER.log(Level.SEVERE, "Ticket list not initialized.");
             return;
         }
 
-        for (JavaMethod projectMethod : allProjectMethods) {
-            projectMethod.setBuggy(false);
-        }
+        allProjectMethods.forEach(method -> method.setBuggy(false));
 
         for (Ticket ticket : this.ticketList) {
             Release injectedVersion = ticket.getIv();
@@ -365,7 +375,6 @@ public class ExtractFromGit {
             }
         }
     }
-
 
     private void processFixCommit(RevCommit fixCommit, Release injectedVersion, List<JavaMethod> allProjectMethods) {
         Release fixedVersion = GitUtils.getReleaseOfCommit(fixCommit, this.fullReleaseList);
@@ -379,17 +388,17 @@ public class ExtractFromGit {
             Map<String, String> newFileContentsInFix = GitUtils.getFileContents(fixCommit, diffs, false, repository);
 
             for (DiffEntry diff : diffs) {
-                processDiff(diff, parentOfFix, newFileContentsInFix, injectedVersion, fixedVersion, fixCommit, allProjectMethods);
+                processDiffForBuggyness(diff, parentOfFix, newFileContentsInFix, injectedVersion, fixedVersion, fixCommit, allProjectMethods);
             }
         } catch (IOException | GitAPIException e) {
-            System.err.println("Errore durante l'analisi del commit di fix " + fixCommit.getName() + ": " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Error analyzing fix commit {0}: {1}", new Object[]{fixCommit.getName(), e.getMessage()});
         }
     }
 
-
-    private void processDiff(DiffEntry diff, RevCommit parent, Map<String, String> newContents, Release iv, Release fv, RevCommit fc, List<JavaMethod> methods) throws IOException {
+    private void processDiffForBuggyness(DiffEntry diff, RevCommit parent, Map<String, String> newContents,
+                                         Release iv, Release fv, RevCommit fc, List<JavaMethod> methods) throws IOException {
         String filePath = diff.getNewPath();
-        if (!filePath.endsWith(".java") || filePath.contains("/test/")) {
+        if (!filePath.endsWith(JAVA_EXTENSION) || filePath.contains(TEST_FOLDER)) {
             return;
         }
 
@@ -404,29 +413,28 @@ public class ExtractFromGit {
             MethodDeclaration fixedMd = fixedMethodEntry.getValue();
             MethodDeclaration preFixMd = oldMethodsInFix.get(signature);
 
-            String hashFixed = GitUtils.calculateBodyHash(fixedMd);
-            String hashPreFix = GitUtils.calculateBodyHash(preFixMd);
-
-            boolean actuallyChangedByFix = (preFixMd == null && fixedMd != null) ||
-                    (hashPreFix != null && hashFixed != null && !hashPreFix.equals(hashFixed)) ||
-                    (hashPreFix == null && hashFixed != null && preFixMd != null) ||
-                    (hashPreFix != null && hashFixed == null && fixedMd != null);
-
-            if (actuallyChangedByFix) {
+            if (isActuallyChangedByFix(fixedMd, preFixMd)) {
                 String fqn = filePath + "/" + signature;
                 labelBuggyMethods(fqn, iv, fv, fc, methods);
             }
         }
     }
 
+    private boolean isActuallyChangedByFix(MethodDeclaration fixedMd, MethodDeclaration preFixMd) {
+        String hashFixed = GitUtils.calculateBodyHash(fixedMd);
+        String hashPreFix = (preFixMd != null) ? GitUtils.calculateBodyHash(preFixMd) : null;
+
+        return !Objects.equals(hashPreFix, hashFixed);
+    }
+
     private void labelBuggyMethods(String fixedMethodFQN, Release injectedVersion, Release fixedVersion, RevCommit fixCommit, List<JavaMethod> allProjectMethods) {
         for (JavaMethod projectMethod : allProjectMethods) {
             if (projectMethod.getFullyQualifiedName().equals(fixedMethodFQN)) {
                 // Add the fix commit if the method belongs to the FV and the commit has touched it
-                if (projectMethod.getRelease().getId() == fixedVersion.getId() && projectMethod.getCommits().contains(fixCommit) ) { // Assumiamo che getCommits contenga tutti i commit che hanno toccato il metodo in quella release
+                if (projectMethod.getRelease().getId() == fixedVersion.getId() && projectMethod.getCommits().contains(fixCommit)) {
                     projectMethod.addFixCommit(fixCommit);
                 }
-                // Label as buggy if the method's release is between  IV (included) e FV (excluded)
+                // Label as buggy if the method's release is between IV (included) and FV (excluded)
                 if (projectMethod.getRelease().getId() >= injectedVersion.getId() &&
                         projectMethod.getRelease().getId() < fixedVersion.getId()) {
                     projectMethod.setBuggy(true);
@@ -436,16 +444,12 @@ public class ExtractFromGit {
     }
 
     private void filterAndRenumberReleases() {
-        // Remove releases with 0 commit
         this.fullReleaseList.removeIf(release -> release.getCommitList().isEmpty());
 
         int idCounter = 1;
         for (Release r : this.fullReleaseList) {
             r.setId(idCounter++);
         }
-
     }
 
 }
-
-

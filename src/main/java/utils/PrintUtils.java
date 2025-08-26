@@ -28,6 +28,8 @@ public class PrintUtils {
     private static final String WEKA_RESULTS_DIR = "wekaResults/";
     private static final String SLASH = "/";
 
+    private PrintUtils() {}
+
     private static void ensureDirectoryExists(String directoryPath) throws IOException {
         File dir = new File(directoryPath);
         if (!dir.exists() && !dir.mkdirs()) {
@@ -153,7 +155,7 @@ public class PrintUtils {
 
         try (FileWriter writer = new FileWriter(filename)) {
             // Write the header
-            writer.append(EvaluationResult.getCsvHeader());
+            writer.append(EvaluationResult.CSV_HEADER);
             writer.append(DELIMITER);
 
             // Write each result row

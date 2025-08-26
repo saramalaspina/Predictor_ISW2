@@ -48,59 +48,69 @@ public class ExtractFromJIRA {
 
     //Retrieving all tickets of type BUG with status CLOSED or RESOLVED and resolution equals to FIXED (not Unresolved or others)
     public List<Ticket> getTicketList(List<Release> releasesList, boolean fix) throws IOException, URISyntaxException {
-        int j;
-        int i = 0;
-        int total;
         List<Ticket> ticketsList = new ArrayList<>();
+        int startIndex = 0;
+        int totalTickets;
+
         do {
-            j = i + 1000;
-            String url = "https://issues.apache.org/jira/rest/api/2/search?jql=project=%22"
-                    + this.projectName + "%22AND%22issueType%22=%22Bug%22AND" +
-                    "(%22status%22=%22Closed%22OR%22status%22=%22Resolved%22)" +
-                    "AND%22resolution%22=%22Fixed%22&fields=key,versions,created,resolutiondate&startAt="
-                    + i + "&maxResults=" + j;
+            String url = buildJiraSearchUrl(startIndex);
             JSONObject json = JIRAUtils.readJsonFromUrl(url);
             JSONArray issues = json.getJSONArray("issues");
-            total = json.getInt("total");
-            for (; i < total && i < j; i++) {
-                //Iterate through each bug to retrieve ID, creation date, resolution date and affected versions
-                String key = issues.getJSONObject(i % 1000).get("key").toString();
-                JSONObject fields = issues.getJSONObject(i % 1000).getJSONObject("fields");
-                String creationDateString = fields.get("created").toString();
-                String resolutionDateString = fields.get("resolutiondate").toString();
-                LocalDate creationDate = LocalDate.parse(creationDateString.substring(0, 10));
-                LocalDate resolutionDate = LocalDate.parse(resolutionDateString.substring(0, 10));
-                JSONArray affectedVersionsArray = fields.getJSONArray("versions");
+            totalTickets = json.getInt("total");
 
-                Release openingVersion = JIRAUtils.getReleaseAfterOrEqualDate(creationDate, releasesList);
-                Release fixedVersion = JIRAUtils.getReleaseAfterOrEqualDate(resolutionDate, releasesList);
+            processIssues(issues, ticketsList, releasesList, startIndex);
 
-                List<Release> affectedVersionsList = JIRAUtils.returnAffectedVersions(affectedVersionsArray, releasesList);
+            startIndex += issues.length(); // Increment startIndex by the number of issues processed in this batch
 
-                //The opening version must be after the injected version (first affected versions) and before the fixed version
-                if (!affectedVersionsList.isEmpty() && openingVersion != null && fixedVersion != null && (!affectedVersionsList.get(0).getDate().isBefore(openingVersion.getDate()) || openingVersion.getDate().isAfter(fixedVersion.getDate()))) {
-                    continue;
-                }
+        } while (startIndex < totalTickets);
 
-                //The opening version must be different from the first release
-                if (openingVersion != null && fixedVersion != null && openingVersion.getId() != releasesList.get(0).getId()) {
-                    ticketsList.add(new Ticket(key, creationDate, resolutionDate, affectedVersionsList.isEmpty() ? null : affectedVersionsList.get(0), openingVersion, fixedVersion, affectedVersionsList));
-                }
-
-            }
-        } while (i < total);
         ticketsList.sort(Comparator.comparing(Ticket::getResolutionDate));
 
-        if(fix) {
-            List<Ticket> fixedTicketsList;
-            // add the AV (if missing) using proportion
-            fixedTicketsList = JIRAUtils.addIVandAV(ticketsList, releasesList, this.projectName);
-            fixedTicketsList.sort(Comparator.comparing(Ticket::getResolutionDate));
-            return fixedTicketsList;
+        if (fix) {
+            return JIRAUtils.addIVandAV(ticketsList, releasesList, this.projectName);
         } else {
             return ticketsList;
         }
-
     }
 
+    private String buildJiraSearchUrl(int startIndex) {
+        return "https://issues.apache.org/jira/rest/api/2/search?jql=project=%22"
+                + this.projectName + "%22AND%22issueType%22=%22Bug%22AND" +
+                "(%22status%22=%22Closed%22OR%22status%22=%22Resolved%22)" +
+                "AND%22resolution%22=%22Fixed%22&fields=key,versions,created,resolutiondate&startAt="
+                + startIndex + "&maxResults=" + (startIndex + 1000);
+    }
+
+    private void processIssues(JSONArray issues, List<Ticket> ticketsList, List<Release> releasesList, int currentStartIndex) {
+        for (int i = 0; i < issues.length(); i++) {
+            JSONObject issue = issues.getJSONObject(i);
+            String key = issue.get("key").toString();
+            JSONObject fields = issue.getJSONObject("fields");
+
+            String creationDateString = fields.get("created").toString();
+            String resolutionDateString = fields.get("resolutiondate").toString();
+            LocalDate creationDate = LocalDate.parse(creationDateString.substring(0, 10));
+            LocalDate resolutionDate = LocalDate.parse(resolutionDateString.substring(0, 10));
+            JSONArray affectedVersionsArray = fields.getJSONArray("versions");
+
+            Release openingVersion = JIRAUtils.getReleaseAfterOrEqualDate(creationDate, releasesList);
+            Release fixedVersion = JIRAUtils.getReleaseAfterOrEqualDate(resolutionDate, releasesList);
+            List<Release> affectedVersionsList = JIRAUtils.returnAffectedVersions(affectedVersionsArray, releasesList);
+
+            if (isValidTicket(affectedVersionsList, openingVersion, fixedVersion, releasesList)) {
+                ticketsList.add(new Ticket(key, creationDate, resolutionDate, affectedVersionsList.isEmpty() ? null : affectedVersionsList.get(0), openingVersion, fixedVersion, affectedVersionsList));
+            }
+        }
+    }
+
+    private boolean isValidTicket(List<Release> affectedVersionsList, Release openingVersion, Release fixedVersion, List<Release> releasesList) {
+        // The opening version must be after the injected version (first affected versions) and before the fixed version
+        if (!affectedVersionsList.isEmpty() && openingVersion != null && fixedVersion != null &&
+                (!affectedVersionsList.get(0).getDate().isBefore(openingVersion.getDate()) || openingVersion.getDate().isAfter(fixedVersion.getDate()))) {
+            return false;
+        }
+
+        // The opening version must be different from the first release
+        return openingVersion != null && fixedVersion != null && openingVersion.getId() != releasesList.get(0).getId();
+    }
 }

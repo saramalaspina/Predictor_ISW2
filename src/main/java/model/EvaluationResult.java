@@ -3,37 +3,30 @@ package model;
 import java.util.Locale;
 
 public class EvaluationResult {
+
+    public static final String CSV_HEADER = "Project,Iteration,Classifier,FeatureSelection,Sampling,CostSensitive,Precision,Recall,AUC,Kappa,F1-Score";
+
+
     private final String project;
     private final int iteration;
     private final String classifierName;
     private final String featureSelection;
     private final String sampling;
     private final String costSensitive;
-    private final double precision;
-    private final double recall;
-    private final double auc;
-    private final double kappa;
-    private final double f1Score;
+    private final Metrics metrics;
 
-    public EvaluationResult(String project, int iteration, String classifierName, String featureSelection, String sampling, String costSensitive, double precision, double recall, double auc, double kappa, double f1Score) {
+    public EvaluationResult(String project, int iteration, WekaClassifier classifier, Metrics metrics) {
         this.project = project;
         this.iteration = iteration;
-        this.classifierName = classifierName;
-        this.featureSelection = featureSelection;
-        this.sampling = sampling;
-        this.costSensitive = costSensitive;
-        this.precision = precision;
-        this.recall = recall;
-        this.auc = auc;
-        this.kappa = kappa;
-        this.f1Score = f1Score;
+        this.classifierName = classifier.getName();
+        this.featureSelection = classifier.getFeatureSelection();
+        this.sampling = classifier.getSampling();
+        this.costSensitive = classifier.getCostSensitive();
+        this.metrics = metrics;
+
     }
 
-
-    public static String getCsvHeader() {
-        return "Project,Iteration,Classifier,FeatureSelection,Sampling,CostSensitive,Precision,Recall,AUC,Kappa,F1-Score";
-    }
-
+    
     public String toCsvString() {
         return String.format(Locale.US, "%s,%d,%s,%s,%s,%s,%.3f,%.3f,%.3f,%.3f,%.3f",
                 project,
@@ -42,10 +35,10 @@ public class EvaluationResult {
                 featureSelection,
                 sampling,
                 costSensitive,
-                precision,
-                recall,
-                auc,
-                kappa,
-                f1Score);
+                metrics.getPrecision(),
+                metrics.getRecall(),
+                metrics.getAuc(),
+                metrics.getKappa(),
+                metrics.getF1Score());
     }
 }

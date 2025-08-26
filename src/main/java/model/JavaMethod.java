@@ -100,11 +100,10 @@ public class JavaMethod {
         fixCommits.add(commit);
     }
 
-    // Per identificare univocamente un metodo (nome + parametri) all'interno di una classe
+
     public static String getSignature(MethodDeclaration md) {
         return md.getSignature().asString();
     }
-
 
     public List<RevCommit> getFixCommits() {
         return fixCommits;

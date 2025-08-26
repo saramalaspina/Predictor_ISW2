@@ -34,7 +34,7 @@ public class CorrelationCalculator {
         String inputFilePath = String.format("reportFiles/%s/Dataset.csv", projectName.toLowerCase());
         File inputFile = new File(inputFilePath);
         if (!inputFile.exists()) {
-            LOGGER.severe("Dataset.csv not found at path: " + inputFilePath);
+            LOGGER.log(Level.INFO, "Dataset.c not found at path: {0}", inputFilePath);
             return;
         }
 
@@ -75,7 +75,7 @@ public class CorrelationCalculator {
         saveResultsToCsv(outputDir, "Correlation.csv", correlationResults);
     }
 
-    private static ParsedData parseDataset(CSVParser csvParser) throws IOException {
+    private static ParsedData parseDataset(CSVParser csvParser) {
         Map<String, Integer> headerMap = csvParser.getHeaderMap();
         if (headerMap == null || !headerMap.containsKey(FEATURE_BUGGY)) {
             LOGGER.severe("Could not read headers or 'Buggy' column not found in Dataset.csv");

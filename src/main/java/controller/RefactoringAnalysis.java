@@ -22,6 +22,8 @@ import static utils.PrintUtils.*;
 // Calculate the metric in the two cases
 public class RefactoringAnalysis {
 
+    private RefactoringAnalysis() {}
+
     private static final Logger LOGGER = Logger.getLogger(RefactoringAnalysis.class.getName());
 
     public static void execute(String projectName, String methodName, String feature) {

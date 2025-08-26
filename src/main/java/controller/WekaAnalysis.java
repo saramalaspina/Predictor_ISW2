@@ -1,6 +1,7 @@
 package controller;
 
 import model.EvaluationResult;
+import model.Metrics;
 import model.PredictionResult;
 import model.WekaClassifier;
 import utils.AcumeUtils;
@@ -53,7 +54,10 @@ public class WekaAnalysis {
         if (this.fullDataset.classIndex() == -1) {
             this.fullDataset.setClassIndex(this.fullDataset.numAttributes() - 1);
         }
-        LOGGER.info(String.format("Dataset for %s loaded successfully with %d instances and %d attributes.", project, this.fullDataset.numInstances(), this.fullDataset.numAttributes()));
+        LOGGER.log(Level.INFO,
+                "Dataset for {0} loaded successfully with {1} instances and {2} attributes.",
+                new Object[]{ project, this.fullDataset.numInstances(), this.fullDataset.numAttributes() }
+        );
     }
 
     // --- WALK-FORWARD ANALYSIS (con ARFF) ---
@@ -147,17 +151,13 @@ public class WekaAnalysis {
                             AcumeUtils.exportToAcumeCsv(acumeOutputFile, predictionResults);
                             Evaluation eval = new Evaluation(trainingSet);
                             eval.evaluateModel(classifierInstance, testingSet);
-                            EvaluationResult result = new EvaluationResult(
-                                    project, iterationId, config.getName(),
-                                    config.getFeatureSelection(), config.getSampling(), config.getCostSensitive(),
-                                    eval.precision(buggyClassIndex), eval.recall(buggyClassIndex),
-                                    eval.areaUnderROC(buggyClassIndex), eval.kappa(), eval.fMeasure(buggyClassIndex)
-                            );
+                            Metrics metrics = new Metrics(eval.precision(buggyClassIndex), eval.recall(buggyClassIndex),  eval.areaUnderROC(buggyClassIndex), eval.kappa(), eval.fMeasure(buggyClassIndex));
+                            EvaluationResult result = new EvaluationResult(project, iterationId, config, metrics);
                             synchronized (this.walkForwardResults) {
                                 this.walkForwardResults.add(result);
                             }
                         } catch (Exception e) {
-                            LOGGER.log(Level.SEVERE, "Error processing classifier in Walk-Forward iteration " + iterationId, e);
+                            LOGGER.log(Level.SEVERE, "Error processing classifier in Walk-Forward iteration {0}", new Object[]{ iterationId });
                         }
                     });
                 }
@@ -184,7 +184,7 @@ public class WekaAnalysis {
     }
 
     private void prepareCrossValidationArffs(int numRuns, int numFolds) throws IOException {
-        LOGGER.info(String.format("Preparing ARFF files for %d-times %d-fold cross-validation...", numRuns, numFolds));
+        LOGGER.log(Level.INFO, "Preparing ARFF files for {0}-times {1}-fold cross-validation...", new Object[]{numRuns, numFolds});
         ArffSaver saver = new ArffSaver();
         for (int run = 1; run <= numRuns; run++) {
             Random rand = new Random(run);
@@ -259,7 +259,7 @@ public class WekaAnalysis {
                     saveRunResults(run, config, aggregatedPredictionsForRun, evaluationsForRun, acumeOutputDir);
                 }
             } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Error processing classifier " + config.getDescriptiveName(), e);
+                LOGGER.log(Level.SEVERE, "Error processing classifier {0}", new Object[]{ config.getDescriptiveName(), e });
             }
         });
 
@@ -280,19 +280,13 @@ public class WekaAnalysis {
         double avgKappa = evaluations.stream().mapToDouble(Evaluation::kappa).average().orElse(Double.NaN);
         double avgF1 = evaluations.stream().mapToDouble(e -> e.fMeasure(buggyClassIndex)).average().orElse(Double.NaN);
 
-        EvaluationResult result = new EvaluationResult(
-                project, run, config.getName(),
-                config.getFeatureSelection(), config.getSampling(), config.getCostSensitive(),
-                avgPrecision, avgRecall, avgAuc, avgKappa, avgF1
-        );
+        Metrics metrics = new Metrics(avgPrecision, avgRecall, avgAuc, avgKappa, avgF1);
+        EvaluationResult result = new EvaluationResult(project, run, config, metrics);
 
         synchronized (this.crossValResults) {
             this.crossValResults.add(result);
         }
     }
-
-
-    // --- METODI HELPER E LOGICA COMUNE (invariati) ---
 
     private List<PredictionResult> getPredictionResults(Classifier clf, Instances data) throws Exception {
         List<PredictionResult> results = new ArrayList<>();
