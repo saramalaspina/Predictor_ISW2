@@ -163,7 +163,7 @@ public class ExtractFromGit {
                 ticket.getCreationDate() != null && !commitDate.isBefore(ticket.getCreationDate());
     }
 
-    public List<JavaMethod> getMethodsFromReleases() throws IOException, GitAPIException, PipelineExecutionException {
+    public List<JavaMethod> getMethodsFromReleases() throws IOException, PipelineExecutionException {
         List<JavaMethod> allMethodsOfReleases = new ArrayList<>();
         Set<String> processedMethodsForRelease = new HashSet<>();
 
@@ -245,7 +245,7 @@ public class ExtractFromGit {
     }
 
 
-    public void addCommitsToMethods(List<JavaMethod> allMethods, List<RevCommit> commitListInput) throws IOException, GitAPIException, PipelineExecutionException {
+    public void addCommitsToMethods(List<JavaMethod> allMethods, List<RevCommit> commitListInput) throws IOException, PipelineExecutionException {
         List<RevCommit> sortedCommits = new ArrayList<>(commitListInput);
         sortedCommits.sort(Comparator.comparing(RevCommit::getCommitTime));
 
