@@ -13,6 +13,7 @@ import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.treewalk.TreeWalk;
 import utils.GitUtils;
+import utils.PipelineExecutionException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -162,7 +163,7 @@ public class ExtractFromGit {
                 ticket.getCreationDate() != null && !commitDate.isBefore(ticket.getCreationDate());
     }
 
-    public List<JavaMethod> getMethodsFromReleases() throws IOException, GitAPIException {
+    public List<JavaMethod> getMethodsFromReleases() throws IOException, GitAPIException, PipelineExecutionException {
         List<JavaMethod> allMethodsOfReleases = new ArrayList<>();
         Set<String> processedMethodsForRelease = new HashSet<>();
 
@@ -183,9 +184,7 @@ public class ExtractFromGit {
         return allMethodsOfReleases;
     }
 
-    private void processFilesInReleaseCommit(RevCommit commit, Release release,
-                                             List<JavaMethod> allMethodsOfReleases,
-                                             Set<String> processedMethodsForRelease) throws IOException {
+    private void processFilesInReleaseCommit(RevCommit commit, Release release, List<JavaMethod> allMethodsOfReleases, Set<String> processedMethodsForRelease) throws IOException {
         try (TreeWalk treeWalk = new TreeWalk(repository)) {
             treeWalk.addTree(commit.getTree());
             treeWalk.setRecursive(true);
@@ -214,7 +213,12 @@ public class ExtractFromGit {
                 String fqn = filePath + "/" + methodSignature;
 
                 if (!processedMethodsForRelease.contains(fqn)) {
-                    JavaMethod currentReleaseMethod = createAndConfigureJavaMethod(fqn, release, md);
+                    JavaMethod currentReleaseMethod = null;
+                    try {
+                        currentReleaseMethod = createAndConfigureJavaMethod(fqn, release, md);
+                    } catch (PipelineExecutionException e) {
+                        LOGGER.log(Level.SEVERE, "SHA-256 hashing failed", e);
+                    }
                     allMethodsOfReleases.add(currentReleaseMethod);
                     release.addMethod(currentReleaseMethod);
                     processedMethodsForRelease.add(fqn);
@@ -225,7 +229,7 @@ public class ExtractFromGit {
         }
     }
 
-    private JavaMethod createAndConfigureJavaMethod(String fqn, Release release, MethodDeclaration md) {
+    private JavaMethod createAndConfigureJavaMethod(String fqn, Release release, MethodDeclaration md) throws PipelineExecutionException {
         JavaMethod method = new JavaMethod(fqn, release);
         method.setBodyHash(GitUtils.calculateBodyHash(md));
 
@@ -241,7 +245,7 @@ public class ExtractFromGit {
     }
 
 
-    public void addCommitsToMethods(List<JavaMethod> allMethods, List<RevCommit> commitListInput) throws IOException, GitAPIException {
+    public void addCommitsToMethods(List<JavaMethod> allMethods, List<RevCommit> commitListInput) throws IOException, GitAPIException, PipelineExecutionException {
         List<RevCommit> sortedCommits = new ArrayList<>(commitListInput);
         sortedCommits.sort(Comparator.comparing(RevCommit::getCommitTime));
 
@@ -256,7 +260,7 @@ public class ExtractFromGit {
         updateNumAuthorsForMethods(allMethods);
     }
 
-    private void processCommitForMethodHistory(RevCommit commit, List<JavaMethod> allMethods) throws IOException, GitAPIException {
+    private void processCommitForMethodHistory(RevCommit commit, List<JavaMethod> allMethods) throws IOException, PipelineExecutionException {
         RevCommit parent = commit.getParent(0);
         List<DiffEntry> diffs = GitUtils.getDiffEntries(parent, commit, repository);
 
@@ -271,7 +275,7 @@ public class ExtractFromGit {
     private void processDiffEntryForMethodHistory(DiffEntry diff, RevCommit commit,
                                                   Map<String, String> oldFileContents,
                                                   Map<String, String> newFileContents,
-                                                  List<JavaMethod> allMethods) {
+                                                  List<JavaMethod> allMethods) throws PipelineExecutionException {
         String filePath = (diff.getChangeType() == DiffEntry.ChangeType.DELETE) ? diff.getOldPath() : diff.getNewPath();
 
         if (!filePath.endsWith(JAVA_EXTENSION) || filePath.contains(TEST_FOLDER)) {
@@ -295,7 +299,7 @@ public class ExtractFromGit {
         }
     }
 
-    private boolean methodBodyChanged(MethodDeclaration oldMd, MethodDeclaration newMd) {
+    private boolean methodBodyChanged(MethodDeclaration oldMd, MethodDeclaration newMd) throws PipelineExecutionException {
         String newBodyHash = GitUtils.calculateBodyHash(newMd);
         String oldBodyHash = (oldMd != null) ? GitUtils.calculateBodyHash(oldMd) : null;
         return !Objects.equals(oldBodyHash, newBodyHash);
@@ -390,13 +394,13 @@ public class ExtractFromGit {
             for (DiffEntry diff : diffs) {
                 processDiffForBuggyness(diff, parentOfFix, newFileContentsInFix, injectedVersion, fixedVersion, fixCommit, allProjectMethods);
             }
-        } catch (IOException e) {
+        } catch (IOException | PipelineExecutionException e) {
             LOGGER.log(Level.SEVERE, "Error analyzing fix commit {0}: {1}", new Object[]{fixCommit.getName(), e.getMessage()});
         }
     }
 
     private void processDiffForBuggyness(DiffEntry diff, RevCommit parent, Map<String, String> newContents,
-                                         Release iv, Release fv, RevCommit fc, List<JavaMethod> methods) throws IOException {
+                                         Release iv, Release fv, RevCommit fc, List<JavaMethod> methods) throws IOException, PipelineExecutionException {
         String filePath = diff.getNewPath();
         if (!filePath.endsWith(JAVA_EXTENSION) || filePath.contains(TEST_FOLDER)) {
             return;
@@ -420,7 +424,7 @@ public class ExtractFromGit {
         }
     }
 
-    private boolean isActuallyChangedByFix(MethodDeclaration fixedMd, MethodDeclaration preFixMd) {
+    private boolean isActuallyChangedByFix(MethodDeclaration fixedMd, MethodDeclaration preFixMd) throws PipelineExecutionException {
         String hashFixed = GitUtils.calculateBodyHash(fixedMd);
         String hashPreFix = (preFixMd != null) ? GitUtils.calculateBodyHash(preFixMd) : null;
 

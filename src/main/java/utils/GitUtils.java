@@ -4,10 +4,8 @@ import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.MethodDeclaration;
-import controller.WekaAnalysis;
 import model.JavaMethod;
 import model.Release;
-import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.diff.DiffEntry;
 import org.eclipse.jgit.diff.DiffFormatter;
 import org.eclipse.jgit.diff.RawTextComparator;
@@ -68,6 +66,7 @@ public class GitUtils {
             CompilationUnit cu = StaticJavaParser.parse(content);
             cu.findAll(MethodDeclaration.class).forEach(md -> methods.put(JavaMethod.getSignature(md), md));
         } catch (ParseProblemException | StackOverflowError ignored) {
+            // Ignored
         }
         return methods;
     }
@@ -94,7 +93,7 @@ public class GitUtils {
         return contents;
     }
 
-    public static String calculateBodyHash(MethodDeclaration md) {
+    public static String calculateBodyHash(MethodDeclaration md) throws PipelineExecutionException {
         if (md == null) return null;
         String normalizedBody = normalizeMethodBody(md);
         if (normalizedBody.isEmpty()) return "EMPTY_BODY_HASH"; // O un altro placeholder
@@ -103,7 +102,7 @@ public class GitUtils {
             byte[] encodedhash = digest.digest(normalizedBody.getBytes(StandardCharsets.UTF_8));
             return bytesToHex(encodedhash);
         } catch (java.security.NoSuchAlgorithmException e) {
-            throw new RuntimeException("SHA-256 Hashing error", e);
+            throw new PipelineExecutionException("SHA-256 Hashing error", e);
         }
     }
 
@@ -125,7 +124,7 @@ public class GitUtils {
         }
 
         String body = md.getBody().get().toString();
-        body = body.replaceAll("//.*|/\\*(?s:.*?)\\*/", ""); // Remove comments
+        body = body.replaceAll("//.*|/\\*(?s).*?\\*/", ""); // Remove comments
         body = body.replaceAll("\\s+", " "); // Replace multiple blank space with a single one
         return body.trim();
     }
