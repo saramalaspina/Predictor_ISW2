@@ -143,7 +143,7 @@ public class PrintUtils {
                         .append(DELIMITER);
             }
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Error creating dataset at " + fullPath, e);
+            LOGGER.log(Level.SEVERE, "Error creating dataset at {0}", fullPath);
         }
     }
 
@@ -248,8 +248,7 @@ public class PrintUtils {
 
         int mainParams = mainRefactored.getParameters().size();
 
-        writer.printf("%s (aggregated),Refactored_Aggregate,%d,%d,%d,%d,%d%n",
-                mainRefactored.getNameAsString(), totalLoc, mainParams, totalBranches, maxNesting, totalSmells);
+        writer.printf("%s (aggregated),Refactored_Aggregate,%d,%d,%d,%d,%d%n", mainRefactored.getNameAsString(), totalLoc, mainParams, totalBranches, maxNesting, totalSmells);
     }
 
     public static void printOption(String option){

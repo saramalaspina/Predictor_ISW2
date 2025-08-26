@@ -40,7 +40,7 @@ public class WekaAnalysis {
 
         // Carica il dataset dal CSV una sola volta all'inizio
         String datasetCsvPath = String.format("reportFiles/%s/Dataset.csv", project.toLowerCase());
-        LOGGER.info("Loading full dataset from CSV: " + datasetCsvPath);
+        LOGGER.log(Level.INFO, "Loading full dataset from CSV: {0}", datasetCsvPath);
 
         CSVLoader loader = new CSVLoader();
         loader.setSource(new File(datasetCsvPath));
