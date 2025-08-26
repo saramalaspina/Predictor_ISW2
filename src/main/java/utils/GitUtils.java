@@ -4,6 +4,7 @@ import com.github.javaparser.ParseProblemException;
 import com.github.javaparser.StaticJavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.body.MethodDeclaration;
+import controller.WekaAnalysis;
 import model.JavaMethod;
 import model.Release;
 import org.eclipse.jgit.api.errors.GitAPIException;
@@ -27,8 +28,12 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class GitUtils {
+
+    private static final Logger LOGGER = Logger.getLogger(GitUtils.class.getName());
 
     private GitUtils() {}
 
@@ -47,7 +52,7 @@ public class GitUtils {
         return null;
     }
 
-    public static List<DiffEntry> getDiffEntries(RevCommit parent, RevCommit commit, Repository repository) throws IOException, GitAPIException {
+    public static List<DiffEntry> getDiffEntries(RevCommit parent, RevCommit commit, Repository repository) throws IOException {
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
             diffFormatter.setRepository(repository);
             diffFormatter.setDiffComparator(RawTextComparator.DEFAULT);
@@ -82,8 +87,7 @@ public class GitUtils {
                     loader.copyTo(output);
                     contents.put(path, output.toString());
                 } catch (org.eclipse.jgit.errors.MissingObjectException e) {
-                    // Oggetto non trovato, potrebbe essere un file binario o un problema
-                    System.err.println("Missing object: " + id + " for path " + path + " in commit " + commit.getName());
+                    LOGGER.log(Level.INFO, "--- Missing object {0} for path {1} in commit {2} ---", new Object[]{id, path, commit.getName()});
                 }
             }
         }

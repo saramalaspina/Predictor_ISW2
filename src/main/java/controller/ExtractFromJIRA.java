@@ -58,7 +58,7 @@ public class ExtractFromJIRA {
             JSONArray issues = json.getJSONArray("issues");
             totalTickets = json.getInt("total");
 
-            processIssues(issues, ticketsList, releasesList, startIndex);
+            processIssues(issues, ticketsList, releasesList);
 
             startIndex += issues.length(); // Increment startIndex by the number of issues processed in this batch
 
@@ -81,7 +81,7 @@ public class ExtractFromJIRA {
                 + startIndex + "&maxResults=" + (startIndex + 1000);
     }
 
-    private void processIssues(JSONArray issues, List<Ticket> ticketsList, List<Release> releasesList, int currentStartIndex) {
+    private void processIssues(JSONArray issues, List<Ticket> ticketsList, List<Release> releasesList) {
         for (int i = 0; i < issues.length(); i++) {
             JSONObject issue = issues.getJSONObject(i);
             String key = issue.get("key").toString();

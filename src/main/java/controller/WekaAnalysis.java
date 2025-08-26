@@ -54,10 +54,7 @@ public class WekaAnalysis {
         if (this.fullDataset.classIndex() == -1) {
             this.fullDataset.setClassIndex(this.fullDataset.numAttributes() - 1);
         }
-        LOGGER.log(Level.INFO,
-                "Dataset for {0} loaded successfully with {1} instances and {2} attributes.",
-                new Object[]{ project, this.fullDataset.numInstances(), this.fullDataset.numAttributes() }
-        );
+        LOGGER.log(Level.INFO, "Dataset for {0} loaded successfully with {1} instances and {2} attributes.", new Object[]{project, this.fullDataset.numInstances(), this.fullDataset.numAttributes()});
     }
 
     // --- WALK-FORWARD ANALYSIS (con ARFF) ---
@@ -157,7 +154,7 @@ public class WekaAnalysis {
                                 this.walkForwardResults.add(result);
                             }
                         } catch (Exception e) {
-                            LOGGER.log(Level.SEVERE, "Error processing classifier in Walk-Forward iteration {0}", new Object[]{ iterationId });
+                            LOGGER.log(Level.SEVERE, "Error processing classifier in Walk-Forward iteration {0}", new Object[]{iterationId});
                         }
                     });
                 }
@@ -259,7 +256,7 @@ public class WekaAnalysis {
                     saveRunResults(run, config, aggregatedPredictionsForRun, evaluationsForRun, acumeOutputDir);
                 }
             } catch (Exception e) {
-                LOGGER.log(Level.SEVERE, "Error processing classifier {0}", new Object[]{ config.getDescriptiveName(), e });
+                LOGGER.log(Level.SEVERE, "Error processing classifier {0}: {1}", new Object[]{ config.getDescriptiveName(), e });
             }
         });
 

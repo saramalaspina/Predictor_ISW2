@@ -1,5 +1,7 @@
 package controller;
 
+import utils.PrintUtils;
+
 import java.util.Scanner;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -13,30 +15,30 @@ public class StartPredictor {
         Scanner scanner = new Scanner(System.in);
 
         // Scegli il progetto
-        System.out.println("Select the project to analyze:");
-        System.out.println("1: BOOKKEEPER");
-        System.out.println("2: OPENJPA");
-        System.out.print("Enter your choice: ");
+        PrintUtils.printOption("Select the project to analyze:");
+        PrintUtils.printOption("1: BOOKKEEPER");
+        PrintUtils.printOption("2: OPENJPA");
+        PrintUtils.printOption("Enter your choice: ");
         String projectChoice = scanner.nextLine();
         String project = "1".equals(projectChoice) ? "BOOKKEEPER" : "OPENJPA";
 
-        System.out.println("-------------------------------------------");
-        System.out.println("Project selected: " + project.toUpperCase());
-        System.out.println("-------------------------------------------");
+        PrintUtils.printOption("-------------------------------------------");
+        PrintUtils.printOption("Project selected: " + project.toUpperCase());
+        PrintUtils.printOption("-------------------------------------------");
 
         PipelineController controller = new PipelineController(project);
 
         // Loop del menu principale
         boolean exit = false;
         while (!exit) {
-            System.out.println("\nSelect the analysis to perform:");
-            System.out.println("1: [Milestone 1] Execute Data Extraction and Dataset Creation");
-            System.out.println("2: [Step 2] Execute WEKA Classifier Analysis");
-            System.out.println("3: Execute Correlation Analysis");
-            System.out.println("4: Execute Refactoring Analysis");
-            System.out.println("5: Execute What-If Analysis");
-            System.out.println("0: Exit");
-            System.out.print("Enter your choice: ");
+            PrintUtils.printOption("\nSelect the analysis to perform:");
+            PrintUtils.printOption("1: [Milestone 1] Execute Data Extraction and Dataset Creation");
+            PrintUtils.printOption("2: [Step 2] Execute WEKA Classifier Analysis");
+            PrintUtils.printOption("3: Execute Correlation Analysis");
+            PrintUtils.printOption("4: Execute Refactoring Analysis");
+            PrintUtils.printOption("5: Execute What-If Analysis");
+            PrintUtils.printOption("0: Exit");
+            PrintUtils.printOption("Enter your choice: ");
 
             String choice = scanner.nextLine();
 
@@ -61,7 +63,7 @@ public class StartPredictor {
                         exit = true;
                         break;
                     default:
-                        System.out.println("Invalid choice. Please try again.");
+                        PrintUtils.printOption("Invalid choice. Please try again.");
                         break;
                 }
             } catch (Exception e) {
@@ -69,7 +71,7 @@ public class StartPredictor {
             }
         }
 
-        System.out.println("Exiting application");
+        PrintUtils.printOption("Exiting application");
         scanner.close();
     }
 }

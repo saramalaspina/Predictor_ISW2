@@ -390,7 +390,7 @@ public class ExtractFromGit {
             for (DiffEntry diff : diffs) {
                 processDiffForBuggyness(diff, parentOfFix, newFileContentsInFix, injectedVersion, fixedVersion, fixCommit, allProjectMethods);
             }
-        } catch (IOException | GitAPIException e) {
+        } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Error analyzing fix commit {0}: {1}", new Object[]{fixCommit.getName(), e.getMessage()});
         }
     }

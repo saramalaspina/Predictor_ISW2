@@ -251,4 +251,8 @@ public class PrintUtils {
         writer.printf("%s (aggregated),Refactored_Aggregate,%d,%d,%d,%d,%d%n",
                 mainRefactored.getNameAsString(), totalLoc, mainParams, totalBranches, maxNesting, totalSmells);
     }
+
+    public static void printOption(String option){
+        System.out.println(option);
+    }
 }
