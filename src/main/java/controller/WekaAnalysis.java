@@ -70,12 +70,15 @@ public class WekaAnalysis {
         LOGGER.log(Level.INFO, "--- Walk-Forward analysis finished for project: {0} ---", project);
     }
 
+
     private void prepareWalkForwardArffs() throws IOException {
         LOGGER.info("Preparing ARFF files for walk-forward validation...");
         Attribute releaseAttr = this.fullDataset.attribute("Release");
-        if (releaseAttr == null) throw new IllegalStateException("Dataset must have a 'Release' attribute.");
-        int releaseIndex = releaseAttr.index();
+        if (releaseAttr == null) {
+            throw new IllegalStateException("Dataset must have a 'Release' attribute.");
+        }
 
+        int releaseIndex = releaseAttr.index();
         int maxRelease = (int) IntStream.range(0, fullDataset.numInstances())
                 .mapToDouble(i -> fullDataset.instance(i).value(releaseIndex))
                 .max().orElse(0);
@@ -85,22 +88,21 @@ public class WekaAnalysis {
             Instances trainingSet = filterInstancesByRelease(this.fullDataset, releaseIndex, i, true);
             Instances testingSet = filterInstancesByRelease(this.fullDataset, releaseIndex, i + 1, false);
 
-            if (testingSet.isEmpty()) continue;
+            if (!testingSet.isEmpty()) {
+                String iterDir = String.format("arffFiles/%s/walkForward/iteration_%d", project.toLowerCase(), i);
+                new File(iterDir).mkdirs();
 
-            String iterDir = String.format("arffFiles/%s/walkForward/iteration_%d", project.toLowerCase(), i);
-            new File(iterDir).mkdirs();
+                saver.setInstances(trainingSet);
+                saver.setFile(new File(iterDir + "/Training.arff"));
+                saver.writeBatch();
 
-            saver.setInstances(trainingSet);
-            saver.setFile(new File(iterDir + "/Training.arff"));
-            saver.writeBatch();
-
-            saver.setInstances(testingSet);
-            saver.setFile(new File(iterDir + "/Testing.arff"));
-            saver.writeBatch();
+                saver.setInstances(testingSet);
+                saver.setFile(new File(iterDir + "/Testing.arff"));
+                saver.writeBatch();
+            }
         }
         LOGGER.info("Walk-forward ARFF files preparation complete.");
     }
-
 
     private void runWalkForwardFromArffs() throws Exception {
         LOGGER.info("Starting PARALLELIZED walk-forward classification from ARFF files...");
@@ -168,7 +170,7 @@ public class WekaAnalysis {
 // --- CROSS-VALIDATION ANALYSIS ---
 
     public void executeCrossValidation(int numRuns, int numFolds) {
-        System.out.println("Cross Validation " + numRuns + " Times " + numFolds + " Folds");
+        LOGGER.log(Level.INFO,"Cross Validation {0} Times {1} Folds", new Object[]{numRuns, numFolds} );
         LOGGER.log(Level.INFO, "--- Starting FOLD analysis for project: {0} ---", project);
         try {
             if (this.fullDataset.isEmpty()) {
@@ -184,7 +186,7 @@ public class WekaAnalysis {
     }
 
     // Cross Validation Parallela
-    private void runCrossValidationClassification(int numRuns, int numFolds) throws Exception {
+    private void runCrossValidationClassification(int numRuns, int numFolds) {
         LOGGER.info("Starting PARALLELIZED cross-validation classification and ACUME file generation...");
         String acumeOutputDir = String.format("acumeFiles/%s/crossValidation/", this.project.toLowerCase());
         new File(acumeOutputDir).mkdirs();
