@@ -115,55 +115,59 @@ public class WekaAnalysis {
             String trainingPath = String.format("arffFiles/%s/walkForward/iteration_%d/Training.arff", project.toLowerCase(), i);
             String testingPath = String.format("arffFiles/%s/walkForward/iteration_%d/Testing.arff", project.toLowerCase(), i);
 
-            if (!new File(trainingPath).exists() || !new File(testingPath).exists()) continue;
+            File trainingFile = new File(trainingPath);
+            File testingFile = new File(testingPath);
 
-            DataSource trainingSource = new DataSource(trainingPath);
-            Instances trainingSet = trainingSource.getDataSet();
-            trainingSet.setClassIndex(trainingSet.numAttributes() - 1);
+            if (trainingFile.exists() && testingFile.exists()) {
 
-            DataSource testingSource = new DataSource(testingPath);
-            Instances testingSet = testingSource.getDataSet();
-            testingSet.setClassIndex(testingSet.numAttributes() - 1);
+                DataSource trainingSource = new DataSource(trainingPath);
+                Instances trainingSet = trainingSource.getDataSet();
+                trainingSet.setClassIndex(trainingSet.numAttributes() - 1);
 
-            if (testingSet.isEmpty()) continue;
+                DataSource testingSource = new DataSource(testingPath);
+                Instances testingSet = testingSource.getDataSet();
+                testingSet.setClassIndex(testingSet.numAttributes() - 1);
 
-            LOGGER.log(Level.INFO, "--- WF Iteration {0}: Training on {1}, Testing on {2} ---", new Object[]{i, trainingSet.numInstances(), testingSet.numInstances()});
+                if (!testingSet.isEmpty()) {
+                    LOGGER.log(Level.INFO, "--- WF Iteration {0}: Training on {1}, Testing on {2} ---", new Object[]{i, trainingSet.numInstances(), testingSet.numInstances()});
 
-            List<WekaClassifier> classifiersToTest = ClassifierBuilder.buildClassifiers(trainingSet);
-            int buggyClassIndex = trainingSet.classAttribute().indexOfValue("yes");
-            final int iterationId = i;
+                    List<WekaClassifier> classifiersToTest = ClassifierBuilder.buildClassifiers(trainingSet);
+                    final int iterationId = i;
 
-            classifiersToTest.parallelStream().forEach(config -> {
-                try {
-                    LOGGER.log(Level.INFO, "Processing classifier {0} for WF iteration {1} on thread {2}", new Object[]{config.getDescriptiveName(), iterationId, Thread.currentThread().getName()});
+                    classifiersToTest.parallelStream().forEach(config -> {
+                        try {
+                            LOGGER.log(Level.INFO, "Processing classifier {0} for WF iteration {1} on thread {2}", new Object[]{config.getDescriptiveName(), iterationId, Thread.currentThread().getName()});
 
-                    WekaClassifier freshWekaClassifier = ClassifierBuilder.buildSpecificClassifier(
-                            config.getName(), config.getSampling(), config.getFeatureSelection(), config.getCostSensitive(), trainingSet
-                    );
-                    Classifier classifierInstance = freshWekaClassifier.getClassifier();
+                            WekaClassifier freshWekaClassifier = ClassifierBuilder.buildSpecificClassifier(
+                                    config.getName(), config.getSampling(), config.getFeatureSelection(), config.getCostSensitive(), trainingSet
+                            );
+                            Classifier classifierInstance = freshWekaClassifier.getClassifier();
 
-                    classifierInstance.buildClassifier(trainingSet);
+                            classifierInstance.buildClassifier(trainingSet);
 
-                    List<PredictionResult> predictionResults = getPredictionResults(classifierInstance, testingSet);
+                            List<PredictionResult> predictionResults = getPredictionResults(classifierInstance, testingSet);
 
-                    String fileSuffix = "wf_iter" + iterationId + ".csv";
-                    String descriptiveFileName = config.getDescriptiveName().replaceAll("\\s+", "") + "_" + fileSuffix;
-                    String acumeOutputFile = acumeOutputDir + project.toLowerCase() + "_" + descriptiveFileName;
-                    AcumeUtils.exportToAcumeCsv(acumeOutputFile, predictionResults);
+                            String fileSuffix = "wf_iter" + iterationId + ".csv";
+                            String descriptiveFileName = config.getDescriptiveName().replaceAll("\\s+", "") + "_" + fileSuffix;
+                            String acumeOutputFile = acumeOutputDir + project.toLowerCase() + "_" + descriptiveFileName;
+                            AcumeUtils.exportToAcumeCsv(acumeOutputFile, predictionResults);
 
-                    Evaluation eval = new Evaluation(trainingSet);
-                    eval.evaluateModel(classifierInstance, testingSet);
+                            Evaluation eval = new Evaluation(trainingSet);
+                            eval.evaluateModel(classifierInstance, testingSet);
 
-                    Metrics metrics = new Metrics(eval.precision(buggyClassIndex), eval.recall(buggyClassIndex), eval.areaUnderROC(buggyClassIndex), eval.kappa(), eval.fMeasure(buggyClassIndex));
-                    EvaluationResult result = new EvaluationResult(project, iterationId, config, metrics);
+                            int buggyClassIndex = trainingSet.classAttribute().indexOfValue("yes");
+                            Metrics metrics = new Metrics(eval.precision(buggyClassIndex), eval.recall(buggyClassIndex), eval.areaUnderROC(buggyClassIndex), eval.kappa(), eval.fMeasure(buggyClassIndex));
+                            EvaluationResult result = new EvaluationResult(project, iterationId, config, metrics);
 
-                    synchronized (this.walkForwardResults) {
-                        this.walkForwardResults.add(result);
-                    }
-                } catch (Exception e) {
-                    LOGGER.log(Level.SEVERE, "Error processing classifier in Walk-Forward iteration {0}: {1}", new Object[]{iterationId, e});
+                            synchronized (this.walkForwardResults) {
+                                this.walkForwardResults.add(result);
+                            }
+                        } catch (Exception e) {
+                            LOGGER.log(Level.SEVERE, "Error processing classifier in Walk-Forward iteration {0}: {1}", new Object[]{iterationId, e});
+                        }
+                    });
                 }
-            });
+            }
         }
     }
 
