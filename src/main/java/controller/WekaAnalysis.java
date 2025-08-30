@@ -192,10 +192,14 @@ public class WekaAnalysis {
     // Cross Validation Parallela
     private void runCrossValidationClassification(int numRuns, int numFolds) {
         LOGGER.info("Starting PARALLELIZED cross-validation classification and ACUME file generation...");
-        String acumeOutputDir = String.format("acumeFiles/%s/crossValidation/", this.project.toLowerCase());
+        String acumeOutputDir = String.format("acumeFiles/%s/input/crossValidation/", this.project.toLowerCase());
         new File(acumeOutputDir).mkdirs();
 
         List<WekaClassifier> classifierConfigurations = ClassifierBuilder.buildClassifiers(this.fullDataset);
+
+        //classifierConfigurations.removeIf(config -> "RandomForest".equalsIgnoreCase(config.getName()));
+        //classifierConfigurations.removeIf(config -> "NaiveBayes".equalsIgnoreCase(config.getName()));
+        classifierConfigurations.removeIf(config -> "IBk".equalsIgnoreCase(config.getName()));
 
         classifierConfigurations.parallelStream().forEach(config -> {
             try {

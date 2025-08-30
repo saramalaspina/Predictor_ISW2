@@ -78,7 +78,7 @@ public class PipelineController {
         try {
             LOGGER.log(Level.INFO, "\n[PHASE 2] Starting WEKA Machine Learning pipeline...");
             WekaAnalysis wekaAnalysis = new WekaAnalysis(project);
-            wekaAnalysis.executeWalkForward();
+            //wekaAnalysis.executeWalkForward();
             wekaAnalysis.executeCrossValidation(config.getCrossValidationRuns(), config.getCrossValidationFolds());
             LOGGER.log(Level.INFO, "[PHASE 2] WEKA Machine Learning pipeline complete.\n");
         } catch (Exception e) {
