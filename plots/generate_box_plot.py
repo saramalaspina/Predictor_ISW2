@@ -66,28 +66,32 @@ def create_label(row):
 
 
 def process_results(project_name, technique):
-    """
-    Carica i risultati da weka e acume e li unisce per creare i plot.
-    """
-    # 1. Carica il file CSV principale da wekaResults
     weka_file_path = DATA_BASE / project_name / technique / "evaluationResults.csv"
     if not weka_file_path.exists():
-        print(f""
-              f"File Weka non trovato: {weka_file_path}")
+        print(f"File Weka non trovato: {weka_file_path}")
         return
     df_weka = pd.read_csv(weka_file_path)
 
     print(f"--- Processando {project_name} - {technique} ---")
 
-    # ---- STANDARDIZZAZIONE DEI VALORI "None" ----
-    # Questo è il passo cruciale per unire correttamente i dati.
-    key_cols = ['FeatureSelection', 'Sampling', 'CostSensitive']
+    key_cols = ['Classifier', 'FeatureSelection', 'Sampling', 'CostSensitive']
     for col in key_cols:
-        # Sostituisce i NaN e le varie forme di "nessuno" ('none', 0) con la stringa 'None'
-        df_weka[col] = df_weka[col].fillna('None').replace(['none', 0, '0'], 'None')
-    # ---------------------------------------------
+        df_weka[col] = df_weka[col].astype(str).fillna('None').replace(['none', '0', '0.0', 'nan'], 'None', regex=False)
 
-    # 2. Carica il file CSV di Acume
+    df_weka['Classifier'] = df_weka['Classifier'].replace({
+        'weka.classifiers.bayes.NaiveBayes': 'NaiveBayes',
+        'weka.classifiers.trees.RandomForest': 'RandomForest',
+        'weka.classifiers.lazy.IBk': 'IBk'
+    })
+
+    df_weka.loc[df_weka['FeatureSelection'].str.contains('BestFirst', case=False, na=False), 'FeatureSelection'] = 'BestFirst'
+    df_weka.loc[df_weka['Sampling'].str.contains('SMOTE', case=False, na=False), 'Sampling'] = 'SMOTE'
+    df_weka.loc[df_weka['CostSensitive'].str.contains('Sensitive', case=False, na=False), 'CostSensitive'] = 'SensitiveLearning'
+
+    for col in ['FeatureSelection', 'Sampling', 'CostSensitive']:
+        valid_values = ['BestFirst', 'SMOTE', 'SensitiveLearning', 'None']
+        df_weka.loc[~df_weka[col].isin(valid_values), col] = 'None'
+
     acume_file_path = ACUME_DATA_BASE / project_name / "output" / technique / "EAM_NEAM_output.csv"
     if not acume_file_path.exists():
         print(f"File Acume non trovato: {acume_file_path}. Salto l'aggiunta di Npofb20.")
@@ -96,26 +100,25 @@ def process_results(project_name, technique):
         print(f"Trovato file Acume: {acume_file_path}")
         df_acume = pd.read_csv(acume_file_path)
 
-        # 3. Prepara df_acume per l'unione: estrai le informazioni dal 'Filename'
-        def parse_filename(filename_str):
-            classifier_match = re.search(r'_(randomforest|naivebayes|ibk)', filename_str.lower())
-            classifier = classifier_match.group(1) if classifier_match else 'None'
+        def parse_filename_robust(filename_str):
+            fname_lower = filename_str.lower()
 
-            if classifier == 'ibk': classifier = 'IBk'
-            if classifier == 'randomforest': classifier = 'RandomForest'
-            if classifier == 'naivebayes': classifier = 'NaiveBayes'
+            if 'randomforest' in fname_lower: classifier = 'RandomForest'
+            elif 'naivebayes' in fname_lower: classifier = 'NaiveBayes'
+            elif 'ibk' in fname_lower: classifier = 'IBk'
+            else: classifier = 'None'
 
-            feature_selection = 'BestFirst' if '_fs' in filename_str else 'None'
-            sampling = 'SMOTE' if '_smote' in filename_str else 'None'
-            cost_sensitive = 'SensitiveLearning' if '_cs' in filename_str else 'None'
+            feature_selection = 'BestFirst' if '_fs' in fname_lower else 'None'
+            sampling = 'SMOTE' if 'smote' in fname_lower else 'None'
+            cost_sensitive = 'SensitiveLearning' if '_cs' in fname_lower else 'None'
 
-            iteration_match = re.search(r'_(run|iter)(\d+)\.csv', filename_str)
-            iteration = int(iteration_match.group(2)) if iteration_match else -1
+            iteration_match = re.search(r'_(?:run|iter)(\d+)\.csv', fname_lower)
+            iteration = int(iteration_match.group(1)) if iteration_match else -1
+
             return pd.Series([classifier, feature_selection, sampling, cost_sensitive, iteration])
 
-        df_acume[['Classifier', 'FeatureSelection', 'Sampling', 'CostSensitive', 'Iteration']] = df_acume['Filename'].apply(parse_filename)
+        df_acume[['Classifier', 'FeatureSelection', 'Sampling', 'CostSensitive', 'Iteration']] = df_acume['Filename'].apply(parse_filename_robust)
 
-        # 4. Unisci i due DataFrame
         df_weka['Iteration'] = df_weka['Iteration'].astype(int)
         df_acume['Iteration'] = df_acume['Iteration'].astype(int)
 
@@ -128,16 +131,15 @@ def process_results(project_name, technique):
             how='left'
         )
 
-        if 'Npofb20' in df_final.columns and df_final['Npofb20'].notna().any():
-            print(f"Unione con dati Acume riuscita. {df_final['Npofb20'].notna().sum()} righe abbinate.")
-        else:
-            print("ATTENZIONE: Nessuna riga è stata abbinata con i dati Acume.")
+        matched_rows = df_final['Npofb20'].notna().sum()
+        total_rows = len(df_final)
+        print(f"Unione con dati Acume: {matched_rows}/{total_rows} righe abbinate con successo.")
+        if matched_rows < total_rows:
+            print("ATTENZIONE: Alcune righe non sono state abbinate.")
 
-    # 5. Pulizia finale e creazione label
     df_final.fillna(0, inplace=True)
     df_final['Configuration'] = df_final.apply(create_label, axis=1)
 
-    # 6. Crea i grafici
     output_path = OUTPUT_BASE / project_name / technique
     metrics = ['AUC', 'Recall', 'F1-Score', 'Precision', 'Kappa', 'Npofb20']
 
@@ -151,6 +153,8 @@ def process_results(project_name, technique):
             )
         else:
             print(f"Metrica '{metric}' non trovata nel DataFrame finale. Salto il grafico.")
+
+
 
 
 def main():
