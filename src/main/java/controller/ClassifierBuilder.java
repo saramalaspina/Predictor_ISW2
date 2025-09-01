@@ -146,13 +146,13 @@ public class ClassifierBuilder {
         // Calculate the percentage of new instances to create
         double percentage = (majoritySize - minoritySize) / minoritySize * 100.0;
 
-        double MAX_PERCENT = 400.0;
+        double maxPercent = 400.0;
 
         if (data.numInstances() > 100000) {
-            MAX_PERCENT = 200.0;
+            maxPercent = 200.0;
         }
 
-        percentage = Math.min(percentage, MAX_PERCENT);
+        percentage = Math.min(percentage, maxPercent);
 
         smote.setPercentage(percentage);
 

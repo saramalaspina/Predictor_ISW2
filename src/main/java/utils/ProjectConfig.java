@@ -7,7 +7,7 @@ public enum ProjectConfig {
             "None",            // BEST_SAMPLING
             "None",           // BEST_FS (Feature Selection)
             "None",          // BEST_CS (Cost Sensitive)
-            10,              // N_RUNS per Cross-Validation
+            2,              // N_RUNS per Cross-Validation
             10             // N_Folds per Cross-Validation
     ),
     BOOKKEEPER(

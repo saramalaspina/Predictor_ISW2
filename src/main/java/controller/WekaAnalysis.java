@@ -197,9 +197,9 @@ public class WekaAnalysis {
 
         List<WekaClassifier> classifierConfigurations = ClassifierBuilder.buildClassifiers(this.fullDataset);
 
-        //classifierConfigurations.removeIf(config -> "RandomForest".equalsIgnoreCase(config.getName()));
-        //classifierConfigurations.removeIf(config -> "NaiveBayes".equalsIgnoreCase(config.getName()));
-        classifierConfigurations.removeIf(config -> "IBk".equalsIgnoreCase(config.getName()));
+        classifierConfigurations.removeIf(config -> "RandomForest".equalsIgnoreCase(config.getName()));
+        classifierConfigurations.removeIf(config -> "NaiveBayes".equalsIgnoreCase(config.getName()));
+        //classifierConfigurations.removeIf(config -> "IBk".equalsIgnoreCase(config.getName()));
 
         classifierConfigurations.parallelStream().forEach(config -> {
             try {
