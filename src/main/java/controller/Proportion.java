@@ -23,8 +23,15 @@ public class Proportion {
 
     private final String projectName;
 
-    private static final Map<String, Float> cachedColdStartProportions = new HashMap<>();
+    private static final Map<Projects, Float> cachedColdStartProportions = new HashMap<>();
 
+    // Cold start project
+    private enum Projects {
+        AVRO,
+        SYNCOPE,
+        STORM,
+        ZOOKEEPER
+    }
 
     public Proportion(String projectName) {
         this.proportionList = new ArrayList<>();
@@ -55,7 +62,6 @@ public class Proportion {
         if (ticket.getIv() != null && ticket.getOv() != null && ticket.getFv() != null) {
             addProportion(ticket);
         }
-
     }
 
     private float increment() {
@@ -66,34 +72,39 @@ public class Proportion {
     }
 
     private float coldStart() throws IOException, URISyntaxException {
-        if (cachedColdStartProportions.containsKey(this.projectName)) {
-            return cachedColdStartProportions.get(this.projectName);
+        List<Float> proportionListTemp = new ArrayList<>();
+
+        for (Projects project : Projects.values()) {
+
+            if (project.toString().equalsIgnoreCase(this.projectName)) {
+                continue;
+            }
+
+            if (cachedColdStartProportions.containsKey(project)) {
+                proportionListTemp.add(cachedColdStartProportions.get(project));
+                continue;
+            }
+
+            ExtractFromJIRA jiraExtractor = new ExtractFromJIRA(project.toString().toUpperCase());
+            List<Release> releaseList = jiraExtractor.getReleaseList();
+            List<Ticket> ticketList = jiraExtractor.getTicketList(releaseList, false);
+
+            List<Ticket> consistentTickets = JIRAUtils.returnValidTickets(ticketList);
+
+            if (consistentTickets.size() >= this.thresholdColdStart) {
+                Proportion proportion = new Proportion(project.toString());
+
+                for (Ticket t : consistentTickets) {
+                    proportion.addProportion(t);
+                }
+
+                float avgProportion = proportion.increment();
+                proportionListTemp.add(avgProportion);
+                cachedColdStartProportions.put(project, avgProportion);
+            }
         }
 
-        ExtractFromJIRA jiraExtractor = new ExtractFromJIRA(this.projectName.toUpperCase());
-        List<Release> releaseList = jiraExtractor.getReleaseList();
-        List<Ticket> ticketList = jiraExtractor.getTicketList(releaseList, false);
-
-        List<Ticket> consistentTickets = JIRAUtils.returnValidTickets(ticketList);
-
-        if (consistentTickets.size() < this.thresholdColdStart) {
-            throw new IllegalStateException(
-                    "Impossibile calcolare la proporzione di cold-start per il progetto '" + this.projectName +
-                            "'. Richiesti almeno " + this.thresholdColdStart + " ticket storici validi, ma trovati " +
-                            consistentTickets.size() + "."
-            );
-        }
-
-
-        Proportion tempProportionCalculator = new Proportion(this.projectName);
-        for (Ticket t : consistentTickets) {
-            tempProportionCalculator.addProportion(t);
-        }
-        float avgProportion = tempProportionCalculator.increment();
-
-        cachedColdStartProportions.put(this.projectName, avgProportion);
-
-        return avgProportion;
+        return JIRAUtils.median(proportionListTemp);
     }
 
     private int obtainIV(float proportion, Ticket ticket) {
@@ -126,6 +137,5 @@ public class Proportion {
 
         this.proportionList.add(proportion);
         this.totalProportion += proportion;
-
     }
 }
