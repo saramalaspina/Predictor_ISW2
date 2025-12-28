@@ -5,22 +5,17 @@ from pathlib import Path
 import numpy as np
 import re
 
-# Cartella di output dei grafici (nella cartella corrente dello script)
 OUTPUT_BASE = Path(__file__).parent / "results"
-
-# Cartella dei dati (wekaResults è fuori dalla cartella dello script)
 DATA_BASE = Path(__file__).parent.parent / "wekaResults"
-
-# Cartella dei dati di Acume
 ACUME_DATA_BASE = Path(__file__).parent.parent / "acumeFiles"
 
 
 def create_box_plot(df, metric, title, output_path):
     """
-    Crea e salva un box plot per una data metrica.
+    Create and save a box plot for a given metric.
     """
     if metric not in df.columns or df[metric].isnull().all() or (df[metric] == 0).all():
-        print(f"Metrica '{metric}' non trovata o contenente solo zeri. Grafico non creato.")
+        print(f"Metric '{metric}' not found or containing only zeros. Plot not created.")
         return
 
     plt.figure(figsize=(16, 9))
@@ -47,13 +42,13 @@ def create_box_plot(df, metric, title, output_path):
     output_path.mkdir(parents=True, exist_ok=True)
     output_filename = output_path / f'boxplot_{metric.lower().replace("-", "_")}.png'
     plt.savefig(output_filename, dpi=300)
-    print(f"Grafico salvato come: {output_filename}")
+    print(f"Plot saved as: {output_filename}")
     plt.close()
 
 
 def create_label(row):
     """
-    Crea un'etichetta di configurazione pulita per una riga del DataFrame.
+    Create a clean configuration label for a DataFrame row.
     """
     parts = [row['Classifier']]
     if row['FeatureSelection'] not in ['none', 'None', '0', 0]:
@@ -68,15 +63,17 @@ def create_label(row):
 def process_results(project_name, technique):
     weka_file_path = DATA_BASE / project_name / technique / "evaluationResults.csv"
     if not weka_file_path.exists():
-        print(f"File Weka non trovato: {weka_file_path}")
+        print(f"Weka file not found: {weka_file_path}")
         return
     df_weka = pd.read_csv(weka_file_path)
 
-    print(f"--- Processando {project_name} - {technique} ---")
+    print(f"--- Processing {project_name} - {technique} ---")
 
     key_cols = ['Classifier', 'FeatureSelection', 'Sampling', 'CostSensitive']
     for col in key_cols:
-        df_weka[col] = df_weka[col].astype(str).fillna('None').replace(['none', '0', '0.0', 'nan'], 'None', regex=False)
+        df_weka[col] = df_weka[col].astype(str).fillna('None').replace(
+            ['none', '0', '0.0', 'nan'], 'None', regex=False
+        )
 
     df_weka['Classifier'] = df_weka['Classifier'].replace({
         'weka.classifiers.bayes.NaiveBayes': 'NaiveBayes',
@@ -84,9 +81,18 @@ def process_results(project_name, technique):
         'weka.classifiers.lazy.IBk': 'IBk'
     })
 
-    df_weka.loc[df_weka['FeatureSelection'].str.contains('BestFirst', case=False, na=False), 'FeatureSelection'] = 'BestFirst'
-    df_weka.loc[df_weka['Sampling'].str.contains('SMOTE', case=False, na=False), 'Sampling'] = 'SMOTE'
-    df_weka.loc[df_weka['CostSensitive'].str.contains('Sensitive', case=False, na=False), 'CostSensitive'] = 'SensitiveLearning'
+    df_weka.loc[
+        df_weka['FeatureSelection'].str.contains('BestFirst', case=False, na=False),
+        'FeatureSelection'
+    ] = 'BestFirst'
+    df_weka.loc[
+        df_weka['Sampling'].str.contains('SMOTE', case=False, na=False),
+        'Sampling'
+    ] = 'SMOTE'
+    df_weka.loc[
+        df_weka['CostSensitive'].str.contains('Sensitive', case=False, na=False),
+        'CostSensitive'
+    ] = 'SensitiveLearning'
 
     for col in ['FeatureSelection', 'Sampling', 'CostSensitive']:
         valid_values = ['BestFirst', 'SMOTE', 'SensitiveLearning', 'None']
@@ -94,19 +100,23 @@ def process_results(project_name, technique):
 
     acume_file_path = ACUME_DATA_BASE / project_name / "output" / technique / "EAM_NEAM_output.csv"
     if not acume_file_path.exists():
-        print(f"File Acume non trovato: {acume_file_path}. Salto l'aggiunta di Npofb20.")
+        print(f"Acume file not found: {acume_file_path}. Skipping Npofb20 merge.")
         df_final = df_weka
     else:
-        print(f"Trovato file Acume: {acume_file_path}")
+        print(f"Acume file found: {acume_file_path}")
         df_acume = pd.read_csv(acume_file_path)
 
         def parse_filename_robust(filename_str):
             fname_lower = filename_str.lower()
 
-            if 'randomforest' in fname_lower: classifier = 'RandomForest'
-            elif 'naivebayes' in fname_lower: classifier = 'NaiveBayes'
-            elif 'ibk' in fname_lower: classifier = 'IBk'
-            else: classifier = 'None'
+            if 'randomforest' in fname_lower:
+                classifier = 'RandomForest'
+            elif 'naivebayes' in fname_lower:
+                classifier = 'NaiveBayes'
+            elif 'ibk' in fname_lower:
+                classifier = 'IBk'
+            else:
+                classifier = 'None'
 
             feature_selection = 'BestFirst' if '_fs' in fname_lower else 'None'
             sampling = 'SMOTE' if 'smote' in fname_lower else 'None'
@@ -115,27 +125,35 @@ def process_results(project_name, technique):
             iteration_match = re.search(r'_(?:run|iter)(\d+)\.csv', fname_lower)
             iteration = int(iteration_match.group(1)) if iteration_match else -1
 
-            return pd.Series([classifier, feature_selection, sampling, cost_sensitive, iteration])
+            return pd.Series([
+                classifier, feature_selection, sampling, cost_sensitive, iteration
+            ])
 
-        df_acume[['Classifier', 'FeatureSelection', 'Sampling', 'CostSensitive', 'Iteration']] = df_acume['Filename'].apply(parse_filename_robust)
+        df_acume[
+            ['Classifier', 'FeatureSelection', 'Sampling', 'CostSensitive', 'Iteration']
+        ] = df_acume['Filename'].apply(parse_filename_robust)
 
         df_weka['Iteration'] = df_weka['Iteration'].astype(int)
         df_acume['Iteration'] = df_acume['Iteration'].astype(int)
 
-        cols_to_merge = ['Classifier', 'FeatureSelection', 'Sampling', 'CostSensitive', 'Iteration', 'Npofb20']
+        cols_to_merge = [
+            'Classifier', 'FeatureSelection', 'Sampling',
+            'CostSensitive', 'Iteration', 'Npofb20'
+        ]
 
         df_final = pd.merge(
             df_weka,
             df_acume[cols_to_merge],
-            on=['Classifier', 'FeatureSelection', 'Sampling', 'CostSensitive', 'Iteration'],
+            on=['Classifier', 'FeatureSelection', 'Sampling',
+                'CostSensitive', 'Iteration'],
             how='left'
         )
 
         matched_rows = df_final['Npofb20'].notna().sum()
         total_rows = len(df_final)
-        print(f"Unione con dati Acume: {matched_rows}/{total_rows} righe abbinate con successo.")
+        print(f"Merge with Acume data: {matched_rows}/{total_rows} rows matched successfully.")
         if matched_rows < total_rows:
-            print("ATTENZIONE: Alcune righe non sono state abbinate.")
+            print("WARNING: Some rows were not matched.")
 
     df_final.fillna(0, inplace=True)
     df_final['Configuration'] = df_final.apply(create_label, axis=1)
@@ -148,13 +166,11 @@ def process_results(project_name, technique):
             create_box_plot(
                 df_final,
                 metric,
-                f"Distribuzione di {metric} per Configurazione ({project_name} - {technique})",
+                f"Distribution of {metric} ({project_name} - {technique})",
                 output_path
             )
         else:
-            print(f"Metrica '{metric}' non trovata nel DataFrame finale. Salto il grafico.")
-
-
+            print(f"Metric '{metric}' not found in final DataFrame. Skipping plot.")
 
 
 def main():
