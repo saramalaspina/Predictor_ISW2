@@ -10,7 +10,23 @@ public class StartPredictor {
     private static final Logger LOGGER = Logger.getLogger(StartPredictor.class.getName());
 
     public static void main(String[] args) {
-        Logger.getLogger("").setLevel(Level.INFO);
+        Logger rootLogger = Logger.getLogger("");
+        rootLogger.setLevel(Level.INFO);
+
+        for (var handler : rootLogger.getHandlers()) {
+            rootLogger.removeHandler(handler);
+        }
+
+        var consoleHandler = new java.util.logging.ConsoleHandler();
+        consoleHandler.setLevel(Level.INFO);
+        consoleHandler.setFormatter(new java.util.logging.Formatter() {
+            @Override
+            public String format(java.util.logging.LogRecord record) {
+                return record.getMessage() + System.lineSeparator();
+            }
+        });
+
+        rootLogger.addHandler(consoleHandler);
 
         Scanner scanner = new Scanner(System.in);
 

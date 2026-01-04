@@ -252,6 +252,6 @@ public class PrintUtils {
     }
 
     public static void printOption(String option){
-        System.out.println(option);
+        LOGGER.info(option);
     }
 }

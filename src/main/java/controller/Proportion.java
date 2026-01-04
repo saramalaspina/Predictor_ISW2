@@ -6,10 +6,7 @@ import utils.JIRAUtils;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static java.lang.Math.max;
 
@@ -23,7 +20,7 @@ public class Proportion {
 
     private final String projectName;
 
-    private static final Map<Projects, Float> cachedColdStartProportions = new HashMap<>();
+    private static final Map<Projects, Float> cachedColdStartProportions = new EnumMap<>(Projects.class);
 
     // Cold start projects
     private enum Projects {
@@ -75,10 +72,6 @@ public class Proportion {
         List<Float> proportionListTemp = new ArrayList<>();
 
         for (Projects project : Projects.values()) {
-
-            if (project.toString().equalsIgnoreCase(this.projectName)) {
-                continue;
-            }
 
             if (cachedColdStartProportions.containsKey(project)) {
                 proportionListTemp.add(cachedColdStartProportions.get(project));
