@@ -21,8 +21,8 @@ public class StartPredictor {
         consoleHandler.setLevel(Level.INFO);
         consoleHandler.setFormatter(new java.util.logging.Formatter() {
             @Override
-            public String format(java.util.logging.LogRecord record) {
-                return record.getMessage() + System.lineSeparator();
+            public String format(java.util.logging.LogRecord logRecord) {
+                return logRecord.getMessage() + System.lineSeparator();
             }
         });
 
