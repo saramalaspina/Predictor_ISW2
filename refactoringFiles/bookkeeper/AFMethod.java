@@ -1,4 +1,3 @@
-//metodo originale
 public static void main(String[] args) throws KeeperException, IOException, InterruptedException, ParseException, BKException {
     Options options = new Options();
     options.addOption("time", true, "Running time (seconds), default 60");

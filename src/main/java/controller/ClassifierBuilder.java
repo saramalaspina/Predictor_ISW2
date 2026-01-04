@@ -23,27 +23,20 @@ import java.util.List;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 
-/*  A factory class for building various WEKA classifier configurations.
-    It creates combinations of base classifiers with feature selection,
-    data balancing (SMOTE), and cost-sensitive techniques */
 
 public class ClassifierBuilder {
 
     private ClassifierBuilder() {}
 
-    // Method to generate a list of all classifier configurations to be tested.
     public static List<WekaClassifier> buildClassifiers(Instances trainingSet) {
         List<WekaClassifier> classifiers = new ArrayList<>();
 
         // Add base classifiers without any pre-processing
         addBaseClassifiers(classifiers);
-
         // Add classifiers with Feature Selection
         addFeatureSelectionClassifiers(classifiers);
-
         // Add classifiers with SMOTE for data balancing
         addSmoteClassifiers(classifiers, trainingSet);
-
         // Add classifiers with Cost-Sensitive learning
         addCostSensitiveClassifiers(classifiers);
 
@@ -96,7 +89,6 @@ public class ClassifierBuilder {
         }
     }
 
-
     private static List<Classifier> getBaseClassifiers() {
         List<Classifier> baseClassifiers = new ArrayList<>();
         baseClassifiers.add(new RandomForest());
@@ -105,13 +97,11 @@ public class ClassifierBuilder {
         return baseClassifiers;
     }
 
-
     private static Filter createFeatureSelectionFilter() {
         AttributeSelection filter = new AttributeSelection();
 
         // Create the evaluator
         CfsSubsetEval eval = new CfsSubsetEval();
-
         // Create the search method
         BestFirst search = new BestFirst();
 

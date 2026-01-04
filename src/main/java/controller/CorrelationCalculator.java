@@ -14,6 +14,7 @@ import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
+// Class to calculate Spearman Correlation between features and bugginess
 public class CorrelationCalculator {
     private static final Logger LOGGER = Logger.getLogger(CorrelationCalculator.class.getName());
     private static final String FEATURE_BUGGY = "Buggy";

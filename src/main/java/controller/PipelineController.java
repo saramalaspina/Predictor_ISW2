@@ -16,7 +16,6 @@ import java.util.logging.Logger;
 
 public class PipelineController {
 
-    // 1. Dichiarazione del Logger
     private static final Logger LOGGER = Logger.getLogger(PipelineController.class.getName());
 
     private final String project;

@@ -7,27 +7,27 @@
             return o;
         }
 
-        // Delega la conversione non numerica
+        // Delegate non-numeric conversion
         if (!(o instanceof Number)) {
             try {
                 return convertNonNumeric(o, wrappedType);
             } catch (ClassCastException e) {
-                // Se la conversione non numerica fallisce, proviamo quella numerica
+                // If non-numeric conversion fails, fall back to numeric conversion
             }
         }
-        
-        // Delega la conversione numerica
+
+        // Delegate numeric conversion
         if (o instanceof Number) {
             return convertNumeric((Number) o, wrappedType);
         }
-        
-        // Se nessuna conversione ha funzionato, lancia l'eccezione
+
+        // If no conversion strategy applies, throw an exception
         throw new ClassCastException(_loc.get("cant-convert", o, o.getClass(), type).getMessage());
     }
 
     /**
-     * AZIONE DI REFACTORING (Extract Method):
-     * La logica di conversione per i tipi non numerici è stata estratta in questo metodo.
+     * REFACTORING ACTION (Extract Method):
+     * The conversion logic for non-numeric types has been extracted into this method.
      */
     private static Object convertNonNumeric(Object o, Class<?> wrappedType) {
         if (wrappedType == String.class) {
@@ -54,8 +54,7 @@
                     return temporal;
             } catch (IllegalArgumentException ignored) {}
         }
-        
-        // Se o è Character/String e il target è un numero, delega al convertitore numerico
+
         if (Number.class.isAssignableFrom(wrappedType)) {
             Integer i = null;
             if (o instanceof Character)
@@ -67,14 +66,14 @@
                 return convertNumeric(i, wrappedType);
         }
         
-        throw new ClassCastException(); // Segnala che la conversione non numerica non è applicabile
+        throw new ClassCastException();
     }
 
     /**
-     * AZIONE DI REFACTORING (Replace Conditional with Polymorphism/Strategy Pattern):
-     * La lunga catena di 'if-else if' per i tipi numerici è stata sostituita con una
-     * mappa statica (Strategy Map). Questo appiattisce la struttura, eliminando
-     * completamente l'annidamento e rendendo il codice più estensibile.
+     * REFACTORING ACTION (Replace Conditional with Polymorphism / Strategy Pattern):
+     * The long 'if-else' chain previously used for numeric type conversion has been
+     * replaced with a static strategy map. This flattens the control structure,
+     * completely removes nesting, and makes the code easier to extend.
      */
     private static final Map<Class<?>, Function<Number, Object>> NUMERIC_CONVERTERS = new HashMap<>();
     static {
@@ -86,7 +85,6 @@
         NUMERIC_CONVERTERS.put(Byte.class, Number::byteValue);
         NUMERIC_CONVERTERS.put(BigInteger.class, n -> new BigInteger(n.toString()));
         NUMERIC_CONVERTERS.put(BigDecimal.class, n -> {
-            // Gestisce i casi speciali di NaN e Infinito
             double dval = n.doubleValue();
             if (Double.isNaN(dval) || Double.isInfinite(dval)) return dval;
             return new BigDecimal(n.toString());
@@ -98,6 +96,5 @@
         if (converter != null) {
             return converter.apply(num);
         }
-        // Se non è un tipo numerico standard, lancia eccezione
         throw new ClassCastException(_loc.get("cant-convert-numeric", num, num.getClass(), wrappedType).getMessage());
     }

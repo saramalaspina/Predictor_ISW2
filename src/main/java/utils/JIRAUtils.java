@@ -38,7 +38,6 @@ public class JIRAUtils {
     }
 
     public static Release getReleaseAfterOrEqualDate(LocalDate specificDate, List<Release> releasesList) {
-
         //sorting the releases by their date
         releasesList.sort(Comparator.comparing(Release::getDate));
 

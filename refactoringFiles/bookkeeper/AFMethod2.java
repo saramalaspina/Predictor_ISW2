@@ -1,9 +1,9 @@
-// Contiene il metodo 'main' rifattorizzato E tutti i metodi estratti.
+// Contains the refactored 'main' method AND all extracted helper methods.
 /**
- * AZIONE DI REFACTORING (Extract Class):
- * È stata creata una nuova classe 'BenchmarkConfig' per incapsulare tutti i parametri
- * del benchmark. Questo riduce il numero di variabili locali nel metodo 'main' e raggruppa
- * logicamente la configurazione in un unico oggetto, migliorando la coesione.
+ * REFACTORING ACTION (Extract Class):
+ * A new class 'BenchmarkConfig' has been introduced to encapsulate all benchmark
+ * parameters. This reduces the number of local variables in the 'main' method and
+ * logically groups configuration concerns into a single object, thereby improving cohesion.
  */
 private static class BenchmarkConfig {
     final long runningTime, timeout;
@@ -37,12 +37,11 @@ private static class BenchmarkConfig {
 }
 
 /**
- * AZIONE DI REFACTORING (Decomposition):
- * Il metodo 'main' originale (AFMethod) è stato decomposto in più metodi privati,
- * ognuno con una singola responsabilità. Il nuovo 'main' (AFMethod2) ora orchestra
- * le chiamate a questi metodi, agendo come un coordinatore. Questo riduce drasticamente
- * il suo LOC, la sua complessità ciclomatica e la sua profondità di annidamento,
- * risolvendo lo smell "Long Method".
+ * REFACTORING ACTION (Decomposition):
+ * The original 'main' method (AFMethod) has been decomposed into multiple private methods,
+ * each with a single responsibility. The new 'main' method (AFMethod2) now orchestrates
+ * the execution by coordinating these methods. This significantly reduces its LOC,
+ * cyclomatic complexity, and nesting depth, effectively resolving the "Long Method" smell.
  */
 public static void main(String[] args)
         throws KeeperException, IOException, InterruptedException, ParseException, BKException {
@@ -77,10 +76,10 @@ public static void main(String[] args)
 }
 
 /**
- * AZIONE DI REFACTORING (Extract Method):
- * La logica per il parsing degli argomenti della riga di comando è stata estratta
- * dal 'main' in questo metodo dedicato. Questo isola la gestione degli input
- * e rende il 'main' più focalizzato sull'orchestrazione.
+ * REFACTORING ACTION (Extract Method):
+ * The logic for parsing command-line arguments has been extracted from the 'main'
+ * method into this dedicated method. This isolates input handling concerns and
+ * allows 'main' to focus solely on orchestration.
  */
 private static BenchmarkConfig parseArguments(String[] args) throws ParseException {
     Options options = new Options();
@@ -140,10 +139,10 @@ private static void runWarmup(BenchmarkConfig config) throws KeeperException, IO
 }
 
 /**
- * AZIONE DI REFACTORING (Extract Method):
- * La logica complessa per la sincronizzazione tra più client tramite ZooKeeper
- * è stata isolata in questo metodo. Questo migliora la leggibilità del 'main',
- * che non deve più preoccuparsi dei dettagli di implementazione di ZooKeeper.
+ * REFACTORING ACTION (Extract Method):
+ * The complex logic required to coordinate multiple clients through ZooKeeper
+ * has been isolated into this method. This improves the readability of 'main',
+ * which no longer needs to manage ZooKeeper implementation details.
  */
 private static ZooKeeper setupZooKeeperCoordination(BenchmarkConfig config) throws IOException, InterruptedException, KeeperException {
     if (config.coordinationZnode == null) {
@@ -175,10 +174,10 @@ private static ZooKeeper setupZooKeeperCoordination(BenchmarkConfig config) thro
 }
 
 /**
- * AZIONE DI REFACTORING (Extract Method):
- * Il calcolo delle statistiche (percentili, throughput) e il salvataggio dei
- * risultati su file sono stati estratti in un metodo dedicato. Questo separa
- * la fase di esecuzione del benchmark dalla fase di analisi dei risultati.
+ * REFACTORING ACTION (Extract Method):
+ * The computation of statistics (percentiles, throughput) and the persistence of
+ * benchmark results to disk have been extracted into a dedicated method. This cleanly
+ * separates benchmark execution from result analysis and reporting.
  */
 private static void processAndSaveResults(BenchThroughputLatency bench, ZooKeeper zk, BenchmarkConfig config) throws IOException, KeeperException, InterruptedException {
     LOG.info("Calculating percentiles");

@@ -1,6 +1,4 @@
-    /**
-     * Convert the given value to the given type.
-     */
+
     public static Object convert(Object o, Class<?> type) {
         if (o == null)
             return null;

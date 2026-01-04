@@ -12,7 +12,7 @@ public class Release {
     private String name;
     private final LocalDate date;
     private final List<RevCommit> commitList;
-    private final List <JavaMethod> methodList;     //list of all methods related to that version
+    private final List <JavaMethod> methodList;  //list of all methods related to that version
 
     public Release(String name, LocalDate date) {
         this.name = name;

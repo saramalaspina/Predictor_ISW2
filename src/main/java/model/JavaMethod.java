@@ -217,7 +217,7 @@ public class JavaMethod {
         if (o == null || getClass() != o.getClass()) return false;
         JavaMethod that = (JavaMethod) o;
         return Objects.equals(fullyQualifiedName, that.fullyQualifiedName) &&
-                Objects.equals(release.getId(), that.release.getId()); // Un metodo è unico per nome E release
+                Objects.equals(release.getId(), that.release.getId());
     }
 
 

@@ -1,3 +1,4 @@
+RandomForest
 Dataset,Type,Count
 A,Actual,729
 A,Estimated,577
@@ -7,3 +8,14 @@ B,Actual,198
 B,Estimated,176
 C,Actual,531
 C,Estimated,381
+
+RandomForest + SensitiveLearning
+Dataset,Type,Count
+A,Actual,729
+A,Estimated,1278
+B+,Actual,198
+B+,Estimated,202
+B,Actual,198
+B,Estimated,220
+C,Actual,531
+C,Estimated,1076

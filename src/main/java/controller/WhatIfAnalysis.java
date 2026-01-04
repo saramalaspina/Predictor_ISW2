@@ -15,8 +15,8 @@ public class WhatIfAnalysis {
     private static final Logger LOGGER = Logger.getLogger(WhatIfAnalysis.class.getName());
 
     private final String project;
-    private final Instances datasetA; // Il dataset completo
-    private final WekaClassifier bClassifierInfo; // Info sul miglior classificatore
+    private final Instances datasetA;
+    private final WekaClassifier bClassifierInfo;
 
     public WhatIfAnalysis(Instances fullDataset, WekaClassifier bestClassifier, String project) {
         this.datasetA = new Instances(fullDataset);

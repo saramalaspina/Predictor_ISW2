@@ -26,7 +26,6 @@ public class EvaluationResult {
 
     }
 
-    
     public String toCsvString() {
         return String.format(Locale.US, "%s,%d,%s,%s,%s,%s,%.3f,%.3f,%.3f,%.3f,%.3f",
                 project,

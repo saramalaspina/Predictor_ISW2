@@ -54,7 +54,7 @@ public class GitUtils {
         try (DiffFormatter diffFormatter = new DiffFormatter(DisabledOutputStream.INSTANCE)) {
             diffFormatter.setRepository(repository);
             diffFormatter.setDiffComparator(RawTextComparator.DEFAULT);
-            diffFormatter.setContext(0); // Nessuna linea di contesto, solo le differenze
+            diffFormatter.setContext(0);
             return diffFormatter.scan(parent.getTree(), commit.getTree());
         }
     }
@@ -96,7 +96,7 @@ public class GitUtils {
     public static String calculateBodyHash(MethodDeclaration md) throws PipelineExecutionException {
         if (md == null) return null;
         String normalizedBody = normalizeMethodBody(md);
-        if (normalizedBody.isEmpty()) return "EMPTY_BODY_HASH"; // O un altro placeholder
+        if (normalizedBody.isEmpty()) return "EMPTY_BODY_HASH";
         try {
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             byte[] encodedhash = digest.digest(normalizedBody.getBytes(StandardCharsets.UTF_8));

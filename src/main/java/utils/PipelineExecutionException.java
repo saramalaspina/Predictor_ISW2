@@ -1,4 +1,4 @@
-package utils; // o il tuo package di eccezioni
+package utils;
 
 
 public class PipelineExecutionException extends Exception {

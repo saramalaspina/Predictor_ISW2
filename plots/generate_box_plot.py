@@ -33,9 +33,10 @@ def create_box_plot(df, metric, title, output_path):
     )
 
     plt.title(title, fontsize=20, pad=20)
-    plt.ylabel(metric, fontsize=14)
-    plt.xlabel('Classifier Configuration', fontsize=14)
-    plt.xticks(rotation=45, ha="right")
+    plt.ylabel(metric, fontsize=16)
+    plt.xlabel('Classifier Configuration', fontsize=16)
+    plt.yticks(fontsize=14)
+    plt.xticks(rotation=45, ha="right", fontsize=14)
     plt.grid(axis='y', linestyle='--', alpha=0.7)
     plt.tight_layout()
 

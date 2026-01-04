@@ -25,7 +25,7 @@ public class Proportion {
 
     private static final Map<Projects, Float> cachedColdStartProportions = new HashMap<>();
 
-    // Cold start project
+    // Cold start projects
     private enum Projects {
         AVRO,
         SYNCOPE,

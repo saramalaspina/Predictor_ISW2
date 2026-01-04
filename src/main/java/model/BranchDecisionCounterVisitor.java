@@ -24,7 +24,7 @@ public class BranchDecisionCounterVisitor extends VoidVisitorAdapter<Void> {
     public void visit(IfStmt n, Void arg) {
         count++;
         countLogicalOperatorsInCondition(n.getCondition());
-        super.visit(n, arg); // Visita il corpo e l'eventuale 'else'
+        super.visit(n, arg);
     }
 
     @Override

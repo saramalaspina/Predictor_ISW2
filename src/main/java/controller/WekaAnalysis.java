@@ -56,8 +56,7 @@ public class WekaAnalysis {
         LOGGER.log(Level.INFO, "Dataset for {0} loaded successfully with {1} instances and {2} attributes.", new Object[]{project, this.fullDataset.numInstances(), this.fullDataset.numAttributes()});
     }
 
-    // --- WALK-FORWARD ANALYSIS (con ARFF) ---
-
+    // --- WALK-FORWARD ANALYSIS ---
     public void executeWalkForward() {
         LOGGER.log(Level.INFO, "--- Starting WALK-FORWARD analysis for project: {0} ---", project);
         try {
@@ -171,8 +170,7 @@ public class WekaAnalysis {
         }
     }
 
-// --- CROSS-VALIDATION ANALYSIS ---
-
+    // --- CROSS-VALIDATION ANALYSIS ---
     public void executeCrossValidation(int numRuns, int numFolds) {
         LOGGER.log(Level.INFO,"Cross Validation {0} Times {1} Folds", new Object[]{numRuns, numFolds} );
         LOGGER.log(Level.INFO, "--- Starting FOLD analysis for project: {0} ---", project);
@@ -189,7 +187,7 @@ public class WekaAnalysis {
         LOGGER.log(Level.INFO, "--- FOLD analysis finished for project: {0} ---", project);
     }
 
-    // Cross Validation Parallela
+    // Parallelized Cross Validation
     private void runCrossValidationClassification(int numRuns, int numFolds) {
         LOGGER.info("Starting PARALLELIZED cross-validation classification and ACUME file generation...");
         String acumeOutputDir = String.format("acumeFiles/%s/input/crossValidation/", this.project.toLowerCase());
@@ -223,14 +221,11 @@ public class WekaAnalysis {
                         Instances testingSet = randData.testCV(numFolds, fold);
                         if (testingSet.isEmpty()) continue;
 
-                        // Usiamo il builder per creare un'istanza nuova e pulita.
-                        // Questo garantisce la thread-safety indipendentemente dalla versione di Weka.
                         WekaClassifier freshWekaClassifier = ClassifierBuilder.buildSpecificClassifier(
                                 config.getName(), config.getSampling(), config.getFeatureSelection(), config.getCostSensitive(), trainingSet
                         );
                         Classifier classifierInstance = freshWekaClassifier.getClassifier();
 
-                        // Ora addestriamo l'istanza appena creata
                         classifierInstance.buildClassifier(trainingSet);
 
                         aggregatedPredictionsForRun.addAll(getPredictionResults(classifierInstance, testingSet));
@@ -269,8 +264,7 @@ public class WekaAnalysis {
     }
 
 
-    // --- HELPER METHODS ---
-
+    // Helper methods
     private List<PredictionResult> getPredictionResults(Classifier clf, Instances data) throws Exception {
         List<PredictionResult> results = new ArrayList<>();
         int buggyClassIndex = data.classAttribute().indexOfValue("yes");

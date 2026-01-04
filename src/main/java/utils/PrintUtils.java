@@ -73,7 +73,7 @@ public class PrintUtils {
                         .append(ticket.getIv().getName()).append(",")
                         .append(ticket.getOv().getName()).append(",")
                         .append(ticket.getFv().getName()).append(",")
-                        .append(String.join(";", avNames)) // Use a different separator for lists inside a cell
+                        .append(String.join(";", avNames))
                         .append(DELIMITER);
             }
         } catch (IOException e) {

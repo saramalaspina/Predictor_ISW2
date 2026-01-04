@@ -14,7 +14,6 @@ public class StartPredictor {
 
         Scanner scanner = new Scanner(System.in);
 
-        // Scegli il progetto
         PrintUtils.printOption("Select the project to analyze:");
         PrintUtils.printOption("1: BOOKKEEPER");
         PrintUtils.printOption("2: OPENJPA");
@@ -28,7 +27,6 @@ public class StartPredictor {
 
         PipelineController controller = new PipelineController(project);
 
-        // Loop del menu principale
         boolean exit = false;
         while (!exit) {
             PrintUtils.printOption("\nSelect the analysis to perform:");

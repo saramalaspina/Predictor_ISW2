@@ -68,21 +68,15 @@ public class MetricCalculator {
     }
 
     public static void calculateNFix(List<JavaMethod> allMethods, List<Ticket> ticketList, List<Release> releaseList) {
-        // 1. Crea una mappa dei commit che sono "fix"
-        //    Questo lo stai già facendo implicitamente, ma rendiamolo esplicito.
         Set<String> fixCommitNames = new HashSet<>();
         for (Ticket ticket : ticketList) {
-            // Assicurati di considerare solo i ticket che sono bug risolti.
-            // La tua query JIRA dovrebbe già farlo.
             for (RevCommit commit : ticket.getCommitList()) {
                 fixCommitNames.add(commit.getName());
             }
         }
 
-        // 2. Trova la data dell'ultimo commit per ogni release
-        //    Questa informazione ci serve per sapere qual è il "momento dello snapshot".
         Map<Integer, Date> releaseSnapshotDate = new HashMap<>();
-        for (Release release : releaseList) { // Usa la lista delle release in analisi
+        for (Release release : releaseList) {
             if (!release.getCommitList().isEmpty()) {
                 release.getCommitList().sort(Comparator.comparing(RevCommit::getCommitTime));
                 Date lastCommitDate = release.getCommitList().get(release.getCommitList().size() - 1).getCommitterIdent().getWhen();
@@ -90,20 +84,15 @@ public class MetricCalculator {
             }
         }
 
-        // 3. Itera su ogni metodo e calcola il suo NFix
         for (JavaMethod method : allMethods) {
             int nFixCount = 0;
 
-            // Prendi la data dello snapshot della release del metodo
+
             Date snapshotDate = releaseSnapshotDate.get(method.getRelease().getId());
-            if (snapshotDate == null) continue; // Salta se non abbiamo una data di snapshot
+            if (snapshotDate == null) continue;
 
-            // Itera su tutti i commit che hanno toccato questo metodo
+
             for (RevCommit commit : method.getCommits()) {
-
-                // Un commit conta come "fix precedente" se:
-                // 1. È un commit di fix (è nel nostro set).
-                // 2. La sua data è ANTECEDENTE alla data dello snapshot del metodo.
                 if (fixCommitNames.contains(commit.getName()) &&
                         commit.getCommitterIdent().getWhen().before(snapshotDate)) {
 
@@ -125,12 +114,11 @@ public class MetricCalculator {
         // 1. Long Method
         if (loc > 30) smellCount++;
         // 2. Complex Method
-        if (cyclomaticComplexity > 7) smellCount++; // La tua soglia originale
+        if (cyclomaticComplexity > 7) smellCount++;
         // 3. Deeply Nested
-        if (nestingDepth > 4) smellCount++; // La tua soglia originale
+        if (nestingDepth > 4) smellCount++;
         // 4. Long Parameter List
         if (numParameters > 4) smellCount++;
-
         // 5. Magic Number
         if (countMagicNumbers(body) > 1) smellCount++;
         // 6. Missing Default In Switch
@@ -146,7 +134,6 @@ public class MetricCalculator {
     }
 
     // --- Helper methods for code smells calculation ---
-
     private static long countMagicNumbers(BlockStmt body) {
         return body.findAll(IntegerLiteralExpr.class).stream()
                 .filter(n -> {
@@ -162,7 +149,7 @@ public class MetricCalculator {
     private static boolean hasMissingDefaultInSwitch(BlockStmt body) {
         for (SwitchStmt switchStmt : body.findAll(SwitchStmt.class)) {
             if (switchStmt.getEntries().stream().noneMatch(entry -> entry.getLabels().isEmpty())) {
-                return true; // Trovato uno switch senza default
+                return true;
             }
         }
         return false;
@@ -191,7 +178,7 @@ public class MetricCalculator {
                 scope = ((MethodCallExpr) scope.get()).getScope();
             }
             if (chainLength >= 3) {
-                return true; // Trovata almeno una catena lunga
+                return true;
             }
         }
         return false;

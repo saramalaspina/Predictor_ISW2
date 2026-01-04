@@ -50,7 +50,7 @@ public class RefactoringAnalysis {
             Optional<MethodDeclaration> originalMethodOpt = cuOriginal.findFirst(MethodDeclaration.class, md -> md.getNameAsString().equals(methodName));
 
             if (originalMethodOpt.isEmpty()) {
-                LOGGER.log(Level.SEVERE, "ERRORE: Impossibile trovare il metodo originale ''{0}'' nel file.", methodName);
+                LOGGER.log(Level.SEVERE, "ERROR: Unable to find the original method ''{0}'' in the file.", methodName);
                 return;
             }
 
@@ -81,14 +81,14 @@ public class RefactoringAnalysis {
                 if (refactoredEntryPointOpt.isPresent()) {
                     printAggregatedMetrics(refactoredEntryPointOpt.get(), allRefactoredMethods, allRefactoredConstructors, writer);
                 } else {
-                    writer.println("ERRORE: Metodo entry point '" + methodName + "' non trovato per il riepilogo aggregato.");
+                    writer.println("ERROR: Entry-point method '" + methodName + "' not found for aggregate summary.");
                 }
             }
 
             LOGGER.info("\nEnd Analysis");
 
         } catch (IOException | ParseProblemException e) {
-            LOGGER.log(Level.SEVERE, "ERRORE durante l'analisi. Controlla i file di input e i percorsi.", e);
+            LOGGER.log(Level.SEVERE, "ERROR during analysis. Please check input files and paths.", e);
         }
     }
 
